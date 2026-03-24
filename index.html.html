@@ -853,12 +853,44 @@ function validarCNPJ(inp){
   if(raw.length===14){
     hint.textContent='Consultando Receita Federal...';
     clearTimeout(cnpjT);
-    cnpjT=setTimeout(()=>{
+    cnpjT=setTimeout(async ()=>{
       if(CNPJS_DUP.includes(v)){ir('tela-cnpj-dup');return;}
-      const emp=EMPRESAS[v]||'Empresa Simulada Ltda';
-      document.getElementById('crm-razao').value=emp;
-      hint.textContent='✓ CNPJ válido · dados preenchidos';
-      inp.className='valido';validarCampos();
+      hint.textContent='⏳ Consultando Receita Federal...';
+
+      try{
+        const resp=await fetch('https://cnpj-maxvidros.marciontb3.workers.dev/'+raw);
+        if(!resp.ok) throw new Error('CNPJ não encontrado');
+        const d=await resp.json();
+
+        const sit=(d.descricao_situacao_cadastral||'').toUpperCase();
+        if(sit&&sit!=='ATIVA'){
+          hint.textContent='⚠ CNPJ '+d.descricao_situacao_cadastral.toLowerCase()+' na Receita Federal';
+          inp.className='erro'; return;
+        }
+
+        const razao=d.razao_social||d.nome_fantasia||'';
+        document.getElementById('crm-razao').value=razao;
+
+        const seg=document.getElementById('crm-segmento');
+        if(!seg.value&&d.cnae_fiscal_descricao){
+          const at=d.cnae_fiscal_descricao.toLowerCase();
+          if(at.includes('vidra')) seg.value='Vidraçaria';
+          else if(at.includes('serralh')) seg.value='Serralheria';
+          else if(at.includes('constru')) seg.value='Construtora';
+          else if(at.includes('movel')||at.includes('móvel')) seg.value='Indústria moveleira';
+          else if(at.includes('esqua')) seg.value='Fabricante de esquadrias';
+        }
+
+        const ft=d.nome_fantasia&&d.nome_fantasia!==razao?' ('+d.nome_fantasia+')':'';
+        hint.textContent='✓ CNPJ ativo'+ft+' · Receita Federal';
+        inp.className='valido'; validarCampos();
+
+      }catch(e){
+        const emp=EMPRESAS[v];
+        if(emp){ document.getElementById('crm-razao').value=emp; hint.textContent='✓ CNPJ válido (offline)'; inp.className='valido'; }
+        else { hint.textContent='⚠ Sem conexão — preencha a razão social manualmente'; inp.className=''; }
+        validarCampos();
+      }
     },1200);
   }else{document.getElementById('crm-razao').value='';hint.textContent='';inp.className=raw.length>0?'erro':'';}
   validarCampos();
@@ -1100,38 +1132,63 @@ function renderItens(){
   sec.style.display='block';
   const total=S.itens.reduce((s,i)=>s+i.total,0);
   document.getElementById('orc-total').textContent=`R$ ${fmt(total)}`;
-  document.getElementById('itens-lista').innerHTML=S.itens.map(item=>`
-    <div class="orcamento-item ${item.warn?'warn':''}">
-      <div class="item-header"><div><div class="item-nome">${item.descricao}</div><div class="item-det">${item.detalhe}</div></div><div class="item-val">R$ ${fmt(item.total)}</div></div>
-      ${item.warn?`<div class="alerta alerta-warn" style="margin:8px 0 4px;padding:7px 10px;font-size:10px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Medida fora do padrão — sujeito a análise técnica.</div>`:''}
-      <span class="item-del" onclick="removerItem(${item.id})">Remover</span>
-    </div>`).join('');
+  document.getElementById('itens-lista').innerHTML=S.itens.map(item=>{
+    const warn=item.warn?'<div class="alerta alerta-warn" style="margin:8px 0 4px;padding:7px 10px;font-size:10px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Medida fora do padrão — sujeito a análise técnica.</div>':'';
+    return '<div class="orcamento-item '+(item.warn?'warn':'')+'"><div class="item-header"><div><div class="item-nome">'+item.descricao+'</div><div class="item-det">'+item.detalhe+'</div></div><div class="item-val">R$ '+fmt(item.total)+'</div></div>'+warn+'<span class="item-del" onclick="removerItem('+item.id+')">Remover</span></div>';
+  }).join('');
 }
 
 function novoItem(){mostrarPasso('tipo');S.tipoSel=null;renderTipos();}
 function removerItem(id){S.itens=S.itens.filter(i=>i.id!==id);renderItens();}
 
 // ══ REVISÃO ══
+function montarMsgWpp(c, itens, total) {
+  const linhas = itens.map(i => {
+    const areaTot = i.area * i.qty;
+    // Medida REAL digitada na mensagem; arredondamento só na cobrança (oculto)
+    const medReal = `${i.larg}×${i.alt}mm`;
+    return `• ${i.descricao}\n  ${i.qty} pç${i.qty>1?'s':''} · ${medReal} · ${fmt(i.area)} m²/pç · ${fmt(areaTot)} m² total\n  Valor: R$ ${fmt(i.total)}${i.warn?' ⚠ fora do padrão':''}`;
+  }).join('\n\n');
+  return `*Atendimento #${c.atd}*\nOlá ${c.contato.split(' ')[0]}, segue seu pré-orçamento Max Vidros:\n\n${linhas}\n\n*Total: R$ ${fmt(total)}*\nValidade: 3 dias úteis.\n\n⚠ Consulte as normas técnicas: abravidro.org.br\n\n*${S.vendedor.nome} — Max Vidros*`;
+}
+
 function renderRevisao(){
   const c=S.cliente;if(!c)return;
   document.getElementById('rev-atd').textContent=c.atd;
   document.getElementById('rev-cliente').innerHTML=`<div style="font-size:15px;font-weight:500;margin-bottom:4px">${c.razao}</div><div style="font-size:12px;color:var(--texto2)">${c.contato} · ${c.tel}</div><div style="font-size:12px;color:var(--texto2)">${c.segmento}</div>`;
   const total=S.itens.reduce((s,i)=>s+i.total,0);
   document.getElementById('rev-total').textContent=`R$ ${fmt(total)}`;
-  document.getElementById('rev-itens').innerHTML=S.itens.map(i=>`
-    <div class="orcamento-item ${i.warn?'warn':''}">
-      <div class="item-header"><div><div class="item-nome">${i.descricao}</div><div class="item-det">${i.detalhe}</div></div><div class="item-val">R$ ${fmt(i.total)}</div></div>
-      ${i.warn?`<div style="font-size:10px;color:#633806;margin-top:6px">⚠ Medida fora do padrão — sujeito a análise técnica.</div>`:''}
-    </div>`).join('');
-  const itensWpp=S.itens.map(i=>`• ${i.descricao} — ${i.detalhe} — R$ ${fmt(i.total)}${i.warn?' ⚠':''}`).join('<br>');
-  document.getElementById('rev-preview').innerHTML=`<strong>Atendimento #${c.atd}</strong><br>Olá ${c.contato.split(' ')[0]}, segue seu pré-orçamento Max Vidros:<br><br>${itensWpp}<br><br><strong>Total: R$ ${fmt(total)}</strong><br>Validade: 3 dias úteis.<br><br>⚠ Consulte as normas técnicas para aplicação: abravidro.org.br<br><br><strong>${S.vendedor.nome} — Max Vidros</strong>`;
+  document.getElementById('rev-itens').innerHTML=S.itens.map(i=>{
+    const areaTot=i.area*i.qty;
+    const temArred=i.lR!==i.larg||i.aR!==i.alt;
+    const linhaArred=temArred?'<div style="font-size:10px;color:var(--texto3);margin-top:1px">Cobrado: '+i.lR+'×'+i.aR+'mm (arredondado)</div>':'';
+    const linhaWarn=i.warn?'<div style="font-size:10px;color:#633806;margin-top:6px">⚠ Medida fora do padrão — sujeito a análise técnica.</div>':'';
+    return '<div class="orcamento-item '+(i.warn?'warn':'')+'">'
+      +'<div class="item-header"><div>'
+      +'<div class="item-nome">'+i.descricao+'</div>'
+      +'<div class="item-det">'+i.qty+' pç'+(i.qty>1?'s':'')+' · <strong>'+i.larg+'×'+i.alt+'mm</strong> (real)</div>'
+      +linhaArred
+      +'<div style="font-size:11px;color:var(--texto3);margin-top:2px">'+fmt(i.area)+' m²/pç · <strong style="color:var(--texto2)">'+fmt(areaTot)+' m² total</strong></div>'
+      +'</div><div class="item-val">R$ '+fmt(i.total)+'</div></div>'
+      +linhaWarn
+      +'</div>';
+  }).join('');
+  // Preview WhatsApp com m²
+  const msgTexto=montarMsgWpp(c,S.itens,total);
+  document.getElementById('rev-preview').innerHTML=msgTexto.replace(/\n/g,'<br>').replace(/\*(.*?)\*/g,'<strong>$1</strong>');
 }
 
 function enviarOrcamento(){
   const c=S.cliente;
   const total=S.itens.reduce((s,i)=>s+i.total,0);
-  const h=hora();
   registrarAtividade('enviado',`R$ ${fmt(total)}`);
+
+  // Monta e abre WhatsApp imediatamente
+  const msg=montarMsgWpp(c,S.itens,total);
+  const telLimpo=c.tel.replace(/\D/g,'');
+  const tel=telLimpo.length===11?'55'+telLimpo:telLimpo.length===10?'550'+telLimpo:telLimpo;
+  window.open(`https://api.whatsapp.com/send/?phone=${tel}&text=${encodeURIComponent(msg)}`,'_blank');
+
   document.getElementById('env-atd').textContent=c.atd;
   document.getElementById('env-desc').innerHTML=`Mensagem encaminhada para <strong>${c.contato}</strong> via WhatsApp.<br>Atividade registrada automaticamente.`;
   document.getElementById('env-resumo').innerHTML=`
@@ -1577,22 +1634,125 @@ function omRender(){
 }
 function omRemover(id){S.omPecas=S.omPecas.filter(p=>p.id!==id);omRender();document.getElementById('om-resultado').innerHTML='';}
 
-function omPecasCabem(ch,p){return Math.max(Math.floor(ch.l/p.l)*Math.floor(ch.a/p.a),Math.floor(ch.l/p.a)*Math.floor(ch.a/p.l));}
-function omOtimizar(pool,pecas){
-  const areaPecas=pecas.reduce((s,p)=>s+(p.l/1000)*(p.a/1000)*p.qty,0);
-  let restantes=pecas.reduce((s,p)=>s+p.qty,0);
-  let usadas=[],areaChapas=0,iter=0;
-  while(restantes>0&&iter++<300){
-    let melhor=null,mc=0;
-    for(const c of pool){const cab=pecas.reduce((s,p)=>s+omPecasCabem(c,p),0);if(cab>mc){mc=cab;melhor=c;}}
-    if(!melhor||mc===0)break;
-    const ja=usadas.find(c=>c.l===melhor.l&&c.a===melhor.a);
-    if(ja)ja.qtd++;else usadas.push({l:melhor.l,a:melhor.a,qtd:1});
-    areaChapas+=(melhor.l/1000)*(melhor.a/1000);
-    restantes-=Math.min(mc,restantes);
+// ── Guilhotinado 2D recursivo ──────────────────────────────────────────────
+// Retorna quantas peças do array `demanda` (com campo .restante) cabem num
+// retângulo W×H, cortando recursivamente e testando as duas orientações.
+// Modifica demanda.restante in-place e devolve o total alocado.
+function omGuilhotina(W, H, demanda) {
+  if (W <= 0 || H <= 0) return 0;
+  let totalAlocado = 0;
+
+  // Tenta alocar a primeira peça disponível que caiba
+  for (let i = 0; i < demanda.length; i++) {
+    const p = demanda[i];
+    if (p.restante <= 0) continue;
+
+    // Testa orientação normal (l×a) e rotacionada (a×l)
+    const orientacoes = [];
+    if (p.l <= W && p.a <= H) orientacoes.push({pl: p.l, pa: p.a});
+    if (p.a <= W && p.l <= H && !(p.l === p.a)) orientacoes.push({pl: p.a, pa: p.l});
+
+    if (!orientacoes.length) continue;
+
+    // Testa cada orientação e escolhe a que deixa menos desperdício
+    let melhorOri = null, melhorSobra = Infinity;
+    for (const o of orientacoes) {
+      const sobra = W * H - o.pl * o.pa;
+      if (sobra < melhorSobra) { melhorSobra = sobra; melhorOri = o; }
+    }
+    if (!melhorOri) continue;
+
+    // Aloca esta peça
+    p.restante--;
+    totalAlocado++;
+
+    // Corte guilhotinado: gera dois sub-retângulos (horizontal e vertical)
+    // Escolhe o corte que maximiza o aproveitamento dos sub-retângulos
+    const {pl, pa} = melhorOri;
+
+    // Opção A: corte horizontal primeiro
+    // Sub1: faixa à direita da peça (W-pl) × pa
+    // Sub2: faixa abaixo (W) × (H-pa)
+    const demA1 = demanda.map(d=>({...d}));
+    const demA2 = demanda.map(d=>({...d}));
+    // sincroniza restante com a peça já alocada
+    demA1[i].restante = p.restante;
+    demA2[i].restante = p.restante;
+    const aA = omGuilhotina(W - pl, pa, demA1) + omGuilhotina(W, H - pa, demA2);
+
+    // Opção B: corte vertical primeiro
+    // Sub1: faixa abaixo da peça pl × (H-pa)
+    // Sub2: faixa à direita (W-pl) × H
+    const demB1 = demanda.map(d=>({...d}));
+    const demB2 = demanda.map(d=>({...d}));
+    demB1[i].restante = p.restante;
+    demB2[i].restante = p.restante;
+    const aB = omGuilhotina(pl, H - pa, demB1) + omGuilhotina(W - pl, H, demB2);
+
+    // Aplica o melhor corte no estado real de demanda
+    if (aA >= aB) {
+      // sincroniza demanda com demA
+      for (let j = 0; j < demanda.length; j++) {
+        // pega o mínimo restante entre os dois sub-ramos
+        demanda[j].restante = Math.min(demA1[j].restante, demA2[j].restante);
+      }
+      totalAlocado += aA;
+    } else {
+      for (let j = 0; j < demanda.length; j++) {
+        demanda[j].restante = Math.min(demB1[j].restante, demB2[j].restante);
+      }
+      totalAlocado += aB;
+    }
+    return totalAlocado; // uma peça por chamada de topo; recursão cuida do resto
   }
-  const perda=areaChapas>0?Math.round((areaChapas-areaPecas)/areaChapas*100):100;
-  return{usadas,areaChapas,areaPecas,perda};
+  return totalAlocado;
+}
+
+// Conta quantas peças cabem numa chapa usando guilhotinado 2D
+function omPecasChapaGuilhotina(chapa, demanda) {
+  const dem = demanda.map(d => ({...d})); // cópia
+  return omGuilhotina(chapa.l, chapa.a, dem);
+}
+
+// Simula o preenchimento completo de uma chapa e retorna demanda atualizada
+function omPreencherChapa(chapa, demanda) {
+  const dem = demanda.map(d => ({...d}));
+  omGuilhotina(chapa.l, chapa.a, dem);
+  return dem;
+}
+
+function omOtimizar(pool, pecas) {
+  const areaPecas = pecas.reduce((s,p) => s + (p.l/1000)*(p.a/1000)*p.qty, 0);
+  let demanda = pecas.map(p => ({...p, restante: p.qty}));
+  let totalRestante = demanda.reduce((s,p) => s + p.qty, 0);
+  let usadas = [], areaChapas = 0, iter = 0;
+
+  while (totalRestante > 0 && iter++ < 200) {
+    // Escolhe a chapa que aloca mais peças restantes
+    let melhor = null, mc = 0;
+    for (const c of pool) {
+      const cab = omPecasChapaGuilhotina(c, demanda);
+      if (cab > mc) { mc = cab; melhor = c; }
+    }
+    if (!melhor || mc === 0) break;
+
+    // Aplica o preenchimento real na demanda
+    demanda = omPreencherChapa(melhor, demanda);
+    const novoTotal = demanda.reduce((s,p) => s + p.restante, 0);
+    const alocado = totalRestante - novoTotal;
+    totalRestante = novoTotal;
+
+    const ja = usadas.find(c => c.l === melhor.l && c.a === melhor.a);
+    if (ja) ja.qtd++; else usadas.push({l: melhor.l, a: melhor.a, qtd: 1});
+    areaChapas += (melhor.l/1000) * (melhor.a/1000);
+
+    if (alocado === 0) break; // segurança: nenhuma peça coube, para
+  }
+
+  const perda = areaChapas > 0
+    ? Math.max(0, Math.round((areaChapas - areaPecas) / areaChapas * 100))
+    : 100;
+  return {usadas, areaChapas, areaPecas, perda};
 }
 function omCor(p){return p<=15?'#5DCAA5':p<=30?'#EF9F27':'#E24B4A';}
 function omCorText(p){return p<=15?'#085041':p<=30?'#633806':'#791F1F';}
@@ -1609,7 +1769,7 @@ function omCalcular(){
   const vistos=new Set();
   const unicos=res.filter(r=>{const k=r.usadas.map(c=>`${c.l}x${c.a}x${c.qtd}`).sort().join('|');if(vistos.has(k))return false;vistos.add(k);return true;});
   const m=unicos[0];
-  const uso=100-m.perda;
+  const uso=Math.min(100,Math.max(0,100-m.perda));
   const totalChapas=m.usadas.reduce((s,c)=>s+c.qtd,0);
   const descChapas=m.usadas.map(c=>`${c.qtd}× ${c.l}×${c.a}mm`).join(' + ');
   document.getElementById('om-resultado').innerHTML=`
@@ -1629,7 +1789,7 @@ function omCalcular(){
         <div style="display:flex;align-items:center;gap:5px;font-size:9px;color:rgba(255,255,255,.4)"><div style="width:8px;height:8px;border-radius:50%;background:#E24B4A"></div>+30% — alto</div>
       </div>
     </div>
-    ${unicos.slice(1).map(r=>{const u=100-r.perda;const tot=r.usadas.reduce((s,c)=>s+c.qtd,0);return`<div class="card" style="margin-bottom:8px"><div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px"><div><div style="font-size:12px;font-weight:500">${tot} chapa${tot>1?'s':''} — ${r.usadas.map(c=>`${c.qtd}× ${c.l}×${c.a}`).join(' + ')}</div><div style="font-size:11px;color:var(--texto2);margin-top:2px">${fmt(r.areaPecas)} m² úteis de ${fmt(r.areaChapas)} m²</div></div><div style="text-align:right"><div style="font-size:20px;font-weight:600;color:${omCorText(r.perda)}">${r.perda}%</div><div style="font-size:10px;color:var(--texto3)">desperdício</div></div></div><div style="height:7px;background:var(--bg);border-radius:4px;overflow:hidden"><div style="display:flex;height:100%"><div style="width:${u}%;background:var(--azul);min-width:2px"></div><div style="width:${r.perda}%;background:${omCor(r.perda)};min-width:2px"></div></div></div></div>`;}).join('')}`;
+    ${unicos.slice(1).map(r=>{const u=Math.min(100,Math.max(0,100-r.perda));const tot=r.usadas.reduce((s,c)=>s+c.qtd,0);return`<div class="card" style="margin-bottom:8px"><div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px"><div><div style="font-size:12px;font-weight:500">${tot} chapa${tot>1?'s':''} — ${r.usadas.map(c=>`${c.qtd}× ${c.l}×${c.a}`).join(' + ')}</div><div style="font-size:11px;color:var(--texto2);margin-top:2px">${fmt(r.areaPecas)} m² úteis de ${fmt(r.areaChapas)} m²</div></div><div style="text-align:right"><div style="font-size:20px;font-weight:600;color:${omCorText(r.perda)}">${r.perda}%</div><div style="font-size:10px;color:var(--texto3)">desperdício</div></div></div><div style="height:7px;background:var(--bg);border-radius:4px;overflow:hidden"><div style="display:flex;height:100%"><div style="width:${u}%;background:var(--azul);min-width:2px"></div><div style="width:${r.perda}%;background:${omCor(r.perda)};min-width:2px"></div></div></div></div>`;}).join('')}`;
 }
 
 // ══ MANIFEST ══
