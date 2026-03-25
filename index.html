@@ -218,6 +218,14 @@ body{height:100%;height:-webkit-fill-available;overflow:hidden;font-family:var(-
 .btn-login{width:100%;height:48px;border-radius:10px;border:none;background:#fff;color:var(--azul);font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;margin-top:4px}
 .login-hint{font-size:11px;color:rgba(255,255,255,.4);text-align:center;margin-top:16px}
 
+/* Tabela seletor */
+.tabela-btn{flex:1;border-radius:var(--r);border:.5px solid var(--borda);padding:12px 8px;text-align:center;cursor:pointer;transition:all .2s;opacity:.55}
+.tabela-btn:active{transform:scale(.97)}
+.tabela-btn.ativa{opacity:1;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+#btn-mx1{background:linear-gradient(135deg,#A97C50,#C8965A,#8B5E2F);color:#fff;border-color:#A97C50}
+#btn-mx2{background:linear-gradient(135deg,#8A9BA8,#B0C0CC,#6E8290);color:#fff;border-color:#8A9BA8}
+#btn-mx3{background:linear-gradient(135deg,#B8982A,#E2C14A,#9A7A18);color:#fff;border-color:#B8982A}
+
 /* Home */
 .home-header{background:var(--azul);padding:calc(var(--safe-top) + 20px) 18px 20px;flex-shrink:0}
 .home-header h1{font-size:20px;font-weight:500;color:#fff}
@@ -257,6 +265,17 @@ body{height:100%;height:-webkit-fill-available;overflow:hidden;font-family:var(-
 <div class="tela" id="tela-home">
   <div class="home-header"><h1>Olá, Rafael</h1><p>Max Vidros · Vendedor externo</p></div>
   <div class="body">
+    <div style="display:flex;gap:8px;margin-bottom:14px" id="tabela-sel-home">
+      <div class="tabela-btn ativa" id="btn-mx1" onclick="selecionarTabela('MX1',this)">
+        <div style="font-size:13px;font-weight:600">MX1</div>
+      </div>
+      <div class="tabela-btn" id="btn-mx2" onclick="selecionarTabela('MX2',this)">
+        <div style="font-size:13px;font-weight:600">MX2</div>
+      </div>
+      <div class="tabela-btn" id="btn-mx3" onclick="selecionarTabela('MX3',this)">
+        <div style="font-size:13px;font-weight:600">MX3</div>
+      </div>
+    </div>
     <p class="sec-label">Módulos</p>
     <div class="mod-grid">
       <div class="mod-card" onclick="ir('tela-radar')">
@@ -314,7 +333,7 @@ body{height:100%;height:-webkit-fill-available;overflow:hidden;font-family:var(-
     <div class="card">
       <div class="card-titulo">Dados da empresa</div>
       <div class="campo"><label>CNPJ *</label><input id="crm-cnpj" type="text" placeholder="00.000.000/0001-00" oninput="validarCNPJ(this)"><div class="hint" id="crm-cnpj-hint"></div></div>
-      <div class="campo"><label>Razão social</label><input id="crm-razao" type="text" placeholder="Preenchido automaticamente via CNPJ" readonly></div>
+      <div class="campo"><label>Razão social *</label><input id="crm-razao" type="text" placeholder="Preenchido via CNPJ ou digite manualmente" oninput="validarCampos()"></div>
     </div>
     <div class="card">
       <div class="card-titulo">Contato</div>
@@ -365,7 +384,7 @@ body{height:100%;height:-webkit-fill-available;overflow:hidden;font-family:var(-
 <div class="tela" id="tela-orcamento">
   <div class="topbar">
     <div class="topbar-row"><button class="btn-voltar" onclick="voltar()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button><div><h1 id="orc-titulo">Pré-orçamento</h1><p id="orc-sub">Selecionar produto</p></div></div>
-    <div class="atd-tag" id="orc-atd-tag" style="display:none"></div>
+    <div style="display:flex;gap:6px;margin-top:6px"><div class="atd-tag" id="orc-atd-tag" style="display:none"></div><div class="atd-tag" id="orc-tabela-tag" style="background:rgba(255,255,255,.2)"></div></div>
   </div>
   <div class="body" id="orc-body">
     <div class="alerta alerta-info" id="orc-sem-cliente"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><div><div style="font-weight:500;margin-bottom:2px">Nenhum cliente na sessão</div><div>Redirecionando para o cadastro...</div></div></div>
@@ -630,39 +649,99 @@ body{height:100%;height:-webkit-fill-available;overflow:hidden;font-family:var(-
   <div class="topbar">
     <div class="topbar-row">
       <button class="btn-voltar" onclick="voltar()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
-      <div><h1>Suporte</h1><p>Max Vidros — Time comercial interno</p></div>
+      <div><h1>Suporte</h1><p>Max Vidros — Contatos e informações</p></div>
     </div>
   </div>
-  <div class="body" style="display:flex;flex-direction:column;align-items:center;padding-top:24px">
-    <div style="width:72px;height:72px;border-radius:50%;background:#E1F5EE;border:.5px solid #5DCAA5;display:flex;align-items:center;justify-content:center;margin-bottom:20px">
-      <svg width="36" height="36" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.533 5.858L.057 23.985l6.284-1.648A11.94 11.94 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-5.006-1.37l-.36-.214-3.727.977.995-3.635-.234-.374A9.818 9.818 0 1 1 12 21.818z"/></svg>
-    </div>
-    <div style="font-size:18px;font-weight:500;margin-bottom:6px">Falar com a Max Vidros</div>
-    <div style="font-size:13px;color:var(--texto2);text-align:center;margin-bottom:28px;line-height:1.6">Acesso direto ao time comercial interno<br>para suporte técnico e dúvidas em campo.</div>
-    <div class="card" style="width:100%;margin-bottom:16px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;padding-bottom:12px;border-bottom:.5px solid var(--borda)">
-        <div style="width:40px;height:40px;border-radius:10px;background:#E1F5EE;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="1.8" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.4 2 2 0 0 1 3.6 1.21h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.82a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
-        <div><div style="font-size:12px;color:var(--texto3);margin-bottom:2px">Telefone / WhatsApp</div><div style="font-size:15px;font-weight:500">(11) 4544-1515</div></div>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;padding-bottom:12px;border-bottom:.5px solid var(--borda)">
-        <div style="width:40px;height:40px;border-radius:10px;background:#E6F1FB;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="1.8" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
-        <div><div style="font-size:12px;color:var(--texto3);margin-bottom:2px">E-mail</div><div style="font-size:14px;font-weight:500"><a href="/cdn-cgi/l/email-protection" class="comercial@maxvidros.com.br</div></div>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px">
-        <div style="width:40px;height:40px;border-radius:10px;background:#FAEEDA;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#854F0B" stroke-width="1.8" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
-        <div><div style="font-size:12px;color:var(--texto3);margin-bottom:2px">Endereço</div><div style="font-size:13px;font-weight:500">Rua Luiz Varin, 146</div><div style="font-size:12px;color:var(--texto2)">Vila Carlina — SP · CEP 09370-818</div></div>
-      </div>
-    </div>
-    <div class="card" style="width:100%;margin-bottom:20px">
-      <div style="font-size:12px;color:var(--texto3);margin-bottom:6px">Horário de atendimento</div>
-      <div style="font-size:14px;font-weight:500">Segunda a sexta-feira</div>
-      <div style="font-size:13px;color:var(--texto2)">8h às 18h</div>
-    </div>
-    <button class="btn btn-verde" style="width:100%" onclick="window.open('https://api.whatsapp.com/send/?phone=551145441515&text=Ol%C3%A1!%20Sou%20da%20equipe%20de%20vendas%20Max%20Vidros%20e%20preciso%20de%20suporte%20comercial.','_blank')">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.533 5.858L.057 23.985l6.284-1.648A11.94 11.94 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-5.006-1.37l-.36-.214-3.727.977.995-3.635-.234-.374A9.818 9.818 0 1 1 12 21.818z"/></svg>
-      Abrir WhatsApp — (11) 4544-1515
+  <div class="body">
+
+    <!-- Botão WhatsApp principal -->
+    <button class="btn btn-verde" onclick="window.open('https://api.whatsapp.com/send/?phone=551145441515&text=Ol%C3%A1!%20Sou%20da%20equipe%20de%20vendas%20Max%20Vidros%20e%20preciso%20de%20suporte%20comercial.','_blank')" style="margin-bottom:14px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.533 5.858L.057 23.985l6.284-1.648A11.94 11.94 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-5.006-1.37l-.36-.214-3.727.977.995-3.635-.234-.374A9.818 9.818 0 1 1 12 21.818z"/></svg>
+      Falar no WhatsApp — (11) 4544-1515
     </button>
-    <button class="btn btn-secundario" onclick="voltar()" style="width:100%;margin-top:8px">← Voltar</button>
+
+    <!-- Contatos -->
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-titulo">Contatos</div>
+
+      <!-- Telefone -->
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:.5px solid var(--borda)">
+        <div style="width:36px;height:36px;border-radius:9px;background:#E1F5EE;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="1.8" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.4 2 2 0 0 1 3.6 1.21h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.82a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--texto3);margin-bottom:2px">Telefone / WhatsApp</div>
+          <div style="font-size:14px;font-weight:500">(11) 4544-1515</div>
+        </div>
+        <button onclick="window.open('tel:+551145441515')" style="height:32px;padding:0 12px;border-radius:8px;border:.5px solid var(--borda);background:var(--bg);font-size:11px;font-family:var(--font);cursor:pointer;color:var(--texto2)">Ligar</button>
+      </div>
+
+      <!-- E-mail -->
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:.5px solid var(--borda)">
+        <div style="width:36px;height:36px;border-radius:9px;background:#E6F1FB;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="1.8" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--texto3);margin-bottom:2px">E-mail</div>
+          <div style="font-size:14px;font-weight:500">comercial@maxvidros.com.br</div>
+        </div>
+        <button onclick="window.open('mailto:comercial@maxvidros.com.br')" style="height:32px;padding:0 12px;border-radius:8px;border:.5px solid var(--borda);background:var(--bg);font-size:11px;font-family:var(--font);cursor:pointer;color:var(--texto2)">Email</button>
+      </div>
+
+      <!-- Site -->
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:.5px solid var(--borda)">
+        <div style="width:36px;height:36px;border-radius:9px;background:#EEEDFE;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#534AB7" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--texto3);margin-bottom:2px">Site</div>
+          <div style="font-size:14px;font-weight:500">www.maxvidros.ind.br</div>
+        </div>
+        <button onclick="window.open('https://www.maxvidros.ind.br','_blank')" style="height:32px;padding:0 12px;border-radius:8px;border:.5px solid var(--borda);background:var(--bg);font-size:11px;font-family:var(--font);cursor:pointer;color:var(--texto2)">Abrir</button>
+      </div>
+
+      <!-- Instagram -->
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:.5px solid var(--borda)">
+        <div style="width:36px;height:36px;border-radius:9px;background:#FCEBEB;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A32D2D" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--texto3);margin-bottom:2px">Instagram</div>
+          <div style="font-size:14px;font-weight:500">@maxvidrosespeciais</div>
+        </div>
+        <button onclick="window.open('https://instagram.com/maxvidrosespeciais','_blank')" style="height:32px;padding:0 12px;border-radius:8px;border:.5px solid var(--borda);background:var(--bg);font-size:11px;font-family:var(--font);cursor:pointer;color:var(--texto2)">Ver</button>
+      </div>
+
+      <!-- Endereço -->
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 0">
+        <div style="width:36px;height:36px;border-radius:9px;background:#FAEEDA;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#854F0B" stroke-width="1.8" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--texto3);margin-bottom:2px">Endereço</div>
+          <div style="font-size:13px;font-weight:500">Rua Luiz Varin, 146</div>
+          <div style="font-size:12px;color:var(--texto2)">Vila Carlina — SP · CEP 09370-818</div>
+        </div>
+        <button onclick="window.open('https://www.google.com/maps/search/?api=1&query=Rua+Luiz+Varin+146+Vila+Carlina+SP','_blank')" style="height:32px;padding:0 12px;border-radius:8px;border:.5px solid var(--borda);background:var(--bg);font-size:11px;font-family:var(--font);cursor:pointer;color:var(--texto2)">Mapa</button>
+      </div>
+    </div>
+
+    <!-- Horário -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-titulo">Horário de atendimento</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:13px;font-weight:500">Segunda a sexta-feira</div>
+          <div style="font-size:12px;color:var(--texto2);margin-top:2px">8h às 18h</div>
+        </div>
+        <div style="display:inline-flex;align-items:center;gap:5px;background:var(--verde-bg);border-radius:6px;padding:4px 10px">
+          <div style="width:6px;height:6px;border-radius:50%;background:var(--verde)"></div>
+          <span style="font-size:11px;color:#085041;font-weight:500">Aberto agora</span>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-secundario" onclick="voltar()">← Voltar</button>
     <div style="height:20px"></div>
   </div>
 </div>
@@ -684,6 +763,7 @@ body{height:100%;height:-webkit-fill-available;overflow:hidden;font-family:var(-
 // ══ ESTADO ══
 const S={
   vendedor:{nome:'Rafael Mendes',iniciais:'RAF'},
+  tabelaSel:'MX1',
   cliente:null, atdSeq:1, itens:[], atividades:[],
   aba:'desempenho', periodo:'semana',
   tipoSel:null, espSel:null, corSel:null,
@@ -695,12 +775,14 @@ const CNPJS_DUP=['12.345.678/0001-90','98.765.432/0001-10'];
 const EMPRESAS={'11.222.333/0001-44':'Móveis Escritório SP Ltda','55.666.777/0001-88':'Divisórias & Ambientes Ltda','33.444.555/0001-66':'Construtora Horizonte SA','44.555.666/0001-77':'Esquadrias Premium Ltda','77.888.999/0001-11':'Serralheria Nova Era Ltda'};
 
 const CAT={
-  'Vidro Comum':{esp:['3mm','4mm','5mm','6mm','8mm','10mm','12mm'],cor:['Incolor','Fumê','Verde'],preco:55},
-  'Vidro Temperado':{esp:['4mm','5mm','6mm','8mm','10mm','12mm'],cor:['Incolor','Fumê','Verde'],preco:120},
-  'Vidro Laminado':{esp:['3+3mm','4+4mm','5+5mm','6+6mm'],cor:['Incolor','Opaco','Leitoso'],preco:180},
-  'Temperado + Laminado':{esp:['4+4mm','5+5mm','6+6mm','8+8mm','10+10mm'],cor:['Incolor','Opaco','Leitoso'],preco:260},
-  'Vidro Insulado':{esp:[],cor:[],preco:380},
+  'Vidro Comum':{esp:['3mm','4mm','5mm','6mm','8mm','10mm','12mm'],cor:['Incolor','Fumê','Verde'],preco:{MX1:55,MX2:47,MX3:41}},
+  'Vidro Temperado':{esp:['4mm','5mm','6mm','8mm','10mm','12mm'],cor:['Incolor','Fumê','Verde'],preco:{MX1:120,MX2:102,MX3:90}},
+  'Vidro Laminado':{esp:['3+3mm','4+4mm','5+5mm','6+6mm'],cor:['Incolor','Opaco','Leitoso'],preco:{MX1:180,MX2:153,MX3:135}},
+  'Temperado + Laminado':{esp:['4+4mm','5+5mm','6+6mm','8+8mm','10+10mm'],cor:['Incolor','Opaco','Leitoso'],preco:{MX1:260,MX2:221,MX3:195}},
+  'Vidro Insulado':{esp:[],cor:[],preco:{MX1:380,MX2:323,MX3:285}},
 };
+// Argônio adicional por tabela
+const ARGONIO_PRECO={MX1:40,MX2:34,MX3:30};
 const TIPOS_INSULADO=['Vidro Comum','Vidro Temperado','Vidro Laminado'];
 const CAMARAS=['6mm','9mm','10mm','12mm','15mm'];
 const MOTIVOS=['Cliente desistiu do orçamento','Preço acima do esperado','Produto indisponível','Cliente já comprou em outro lugar','Outro motivo'];
@@ -888,7 +970,7 @@ function validarCNPJ(inp){
       }catch(e){
         const emp=EMPRESAS[v];
         if(emp){ document.getElementById('crm-razao').value=emp; hint.textContent='✓ CNPJ válido (offline)'; inp.className='valido'; }
-        else { hint.textContent='⚠ Sem conexão — preencha a razão social manualmente'; inp.className=''; }
+        else { hint.textContent='⚠ Sem conexão · preencha a razão social manualmente no campo acima'; inp.className=''; document.getElementById('crm-razao').focus(); }
         validarCampos();
       }
     },1200);
@@ -922,6 +1004,16 @@ function salvarCliente(){
   document.getElementById('crm-cnpj').className='';
   document.getElementById('crm-cnpj-hint').textContent='';
   S.leadSelecionado=null;atualizarResumo();ir('tela-cliente-salvo');
+}
+
+// ══ TABELA DE PREÇOS ══
+function selecionarTabela(tabela, el) {
+  S.tabelaSel = tabela;
+  document.querySelectorAll('.tabela-btn').forEach(b => b.classList.remove('ativa'));
+  if(el) el.classList.add('ativa');
+  // Atualiza tag no orcamento se estiver aberto
+  const tag = document.getElementById('orc-tabela-tag');
+  if(tag) tag.textContent = tabela;
 }
 
 // ══ ORÇAMENTO ══
@@ -963,6 +1055,7 @@ function renderOrc(){
   document.getElementById('orc-sub').textContent='Pré-orçamento'+(S.leadSelecionado?' · via Radar':'');
   document.getElementById('orc-atd-tag').style.display='inline-flex';
   document.getElementById('orc-atd-tag').textContent=c.atd;
+  document.getElementById('orc-tabela-tag').textContent=S.tabelaSel;
   S.tipoSel=null;S.espSel=null;S.corSel=null;
   mostrarPasso('tipo');renderTipos();renderItens();
 }
@@ -1026,7 +1119,7 @@ function calcItem(){
   else ab.style.display='none';
   document.getElementById('orc-alerta').style.display=(lR>3000||aR>2500)?'flex':'none';
   const area=(lR/1000)*(aR/1000);
-  const total=q*area*CAT[S.tipoSel].preco;
+  const total=q*area*CAT[S.tipoSel].preco[S.tabelaSel];
   document.getElementById('item-area-label').textContent=`${q} peça${q>1?'s':''} · ${fmt(area)} m² cada`;
   document.getElementById('item-prod-label').textContent=`${S.tipoSel} ${S.espSel} · ${S.corSel}`;
   document.getElementById('item-val').textContent=`R$ ${fmt(total)}`;
@@ -1040,7 +1133,7 @@ function adicionarItem(){
   const q=parseInt(document.getElementById('orc-qty').value)||1;
   const lR=arred50(l),aR=arred50(a);
   const area=(lR/1000)*(aR/1000);
-  const total=q*area*CAT[S.tipoSel].preco;
+  const total=q*area*CAT[S.tipoSel].preco[S.tabelaSel];
   const warn=lR>3000||aR>2500;
   S.itens.push({id:Date.now(),descricao:`${S.tipoSel} ${S.espSel} · ${S.corSel}`,detalhe:`${q} pç${q>1?'s':''} · ${lR}×${aR}mm`,larg:l,alt:a,lR,aR,qty:q,area,total,warn});
   registrarAtividade('orcamento',`${S.itens.length} item${S.itens.length>1?'s':''}`);
@@ -1102,7 +1195,7 @@ function calcInsulado(){
   if(!completo){totalBox.style.display='none';addBtn.style.display='none';return;}
   const lR=arred50(l),aR=arred50(a);
   const area=(lR/1000)*(aR/1000);
-  const preco=CAT['Vidro Insulado'].preco+(ins.argonio?40:0);
+  const preco=CAT['Vidro Insulado'].preco[S.tabelaSel]+(ins.argonio?ARGONIO_PRECO[S.tabelaSel]:0);
   const total=q*area*preco;
   document.getElementById('ins-area-label').textContent=`${q} peça${q>1?'s':''} · ${fmt(area)} m² cada`;
   document.getElementById('ins-prod-label').textContent=`${ins.extTipo.replace('Vidro ','')} ${ins.extEsp} + câmara ${ins.camara} + ${ins.intTipo.replace('Vidro ','')} ${ins.intEsp}${ins.argonio?' + Argônio':''}`;
@@ -1117,7 +1210,7 @@ function adicionarInsulado(){
   const q=parseInt(document.getElementById('ins-qty').value)||1;
   const lR=arred50(l),aR=arred50(a);
   const area=(lR/1000)*(aR/1000);
-  const preco=CAT['Vidro Insulado'].preco+(ins.argonio?40:0);
+  const preco=CAT['Vidro Insulado'].preco[S.tabelaSel]+(ins.argonio?ARGONIO_PRECO[S.tabelaSel]:0);
   const total=q*area*preco;
   const descricao=`Insulado: ${ins.extTipo.replace('Vidro ','')} ${ins.extEsp} ${ins.extCor} + câmara ${ins.camara} + ${ins.intTipo.replace('Vidro ','')} ${ins.intEsp} ${ins.intCor}${ins.argonio?' + Argônio':''}`;
   S.itens.push({id:Date.now(),descricao,detalhe:`${q} pç${q>1?'s':''} · ${lR}×${aR}mm`,larg:l,alt:a,lR,aR,qty:q,area,total,warn:false});
@@ -1149,7 +1242,8 @@ function montarMsgWpp(c, itens, total) {
     const medReal = `${i.larg}×${i.alt}mm`;
     return `• ${i.descricao}\n  ${i.qty} pç${i.qty>1?'s':''} · ${medReal} · ${fmt(i.area)} m²/pç · ${fmt(areaTot)} m² total\n  Valor: R$ ${fmt(i.total)}${i.warn?' ⚠ fora do padrão':''}`;
   }).join('\n\n');
-  return `*Atendimento #${c.atd}*\nOlá ${c.contato.split(' ')[0]}, segue seu pré-orçamento Max Vidros:\n\n${linhas}\n\n*Total: R$ ${fmt(total)}*\nValidade: 3 dias úteis.\n\n⚠ Consulte as normas técnicas: abravidro.org.br\n\n*${S.vendedor.nome} — Max Vidros*`;
+  return `*Atendimento #${c.atd}* · Tabela ${S.tabelaSel}\nOlá ${c.contato.split(' ')[0]}, segue seu pré-orçamento Max Vidros:\n\n${linhas}\n\n*Total: R$ ${fmt(total)}*\nValidade: 3 dias úteis.\n\n⚠ Consulte as normas técnicas: abravidro.org.br\n\n*${S.vendedor.nome} — Max Vidros*
+🌐 www.maxvidros.ind.br | 📷 @maxvidrosespeciais | 📞 (11) 4544-1515`;
 }
 
 function renderRevisao(){
@@ -1634,91 +1728,64 @@ function omRender(){
 }
 function omRemover(id){S.omPecas=S.omPecas.filter(p=>p.id!==id);omRender();document.getElementById('om-resultado').innerHTML='';}
 
-// ── Guilhotinado 2D recursivo ──────────────────────────────────────────────
-// Retorna quantas peças do array `demanda` (com campo .restante) cabem num
-// retângulo W×H, cortando recursivamente e testando as duas orientações.
-// Modifica demanda.restante in-place e devolve o total alocado.
-function omGuilhotina(W, H, demanda) {
-  if (W <= 0 || H <= 0) return 0;
-  let totalAlocado = 0;
+// ── OptMAX — Grid retangular com sobras ───────────────────────────────────
+// Calcula quantas peças cabem numa chapa usando grid retangular
+// Testa orientacao normal e rotacionada, usa o melhor resultado.
+// Para múltiplos tipos de peça, preenche com o tipo prioritário e
+// aproveita a faixa de sobra com os demais tipos.
+function omGridChapa(W, H, demanda) {
+  // Retorna {alocados: [{idx,qty,ori}], sobras: [{w,h}]}
+  let melhorTotal = 0;
+  let melhorPlan = null;
 
-  // Tenta alocar a primeira peça disponível que caiba
   for (let i = 0; i < demanda.length; i++) {
     const p = demanda[i];
     if (p.restante <= 0) continue;
 
-    // Testa orientação normal (l×a) e rotacionada (a×l)
     const orientacoes = [];
     if (p.l <= W && p.a <= H) orientacoes.push({pl: p.l, pa: p.a});
-    if (p.a <= W && p.l <= H && !(p.l === p.a)) orientacoes.push({pl: p.a, pa: p.l});
+    if (p.a !== p.l && p.a <= W && p.l <= H) orientacoes.push({pl: p.a, pa: p.l});
 
-    if (!orientacoes.length) continue;
+    for (const ori of orientacoes) {
+      const cols = Math.floor(W / ori.pl);
+      const rows = Math.floor(H / ori.pa);
+      if (cols === 0 || rows === 0) continue;
+      const nGrid = Math.min(cols * rows, p.restante);
 
-    // Testa cada orientação e escolhe a que deixa menos desperdício
-    let melhorOri = null, melhorSobra = Infinity;
-    for (const o of orientacoes) {
-      const sobra = W * H - o.pl * o.pa;
-      if (sobra < melhorSobra) { melhorSobra = sobra; melhorOri = o; }
-    }
-    if (!melhorOri) continue;
+      // Faixas de sobra após o grid principal
+      const sobraDir = {w: W - cols * ori.pl, h: H};          // faixa direita
+      const sobraBot = {w: cols * ori.pl, h: H - rows * ori.pa}; // faixa inferior
 
-    // Aloca esta peça
-    p.restante--;
-    totalAlocado++;
-
-    // Corte guilhotinado: gera dois sub-retângulos (horizontal e vertical)
-    // Escolhe o corte que maximiza o aproveitamento dos sub-retângulos
-    const {pl, pa} = melhorOri;
-
-    // Opção A: corte horizontal primeiro
-    // Sub1: faixa à direita da peça (W-pl) × pa
-    // Sub2: faixa abaixo (W) × (H-pa)
-    const demA1 = demanda.map(d=>({...d}));
-    const demA2 = demanda.map(d=>({...d}));
-    // sincroniza restante com a peça já alocada
-    demA1[i].restante = p.restante;
-    demA2[i].restante = p.restante;
-    const aA = omGuilhotina(W - pl, pa, demA1) + omGuilhotina(W, H - pa, demA2);
-
-    // Opção B: corte vertical primeiro
-    // Sub1: faixa abaixo da peça pl × (H-pa)
-    // Sub2: faixa à direita (W-pl) × H
-    const demB1 = demanda.map(d=>({...d}));
-    const demB2 = demanda.map(d=>({...d}));
-    demB1[i].restante = p.restante;
-    demB2[i].restante = p.restante;
-    const aB = omGuilhotina(pl, H - pa, demB1) + omGuilhotina(W - pl, H, demB2);
-
-    // Aplica o melhor corte no estado real de demanda
-    if (aA >= aB) {
-      // sincroniza demanda com demA
+      // Conta peças extras nas sobras (todos os tipos)
+      let extras = 0;
       for (let j = 0; j < demanda.length; j++) {
-        // pega o mínimo restante entre os dois sub-ramos
-        demanda[j].restante = Math.min(demA1[j].restante, demA2[j].restante);
+        const q = demanda[j];
+        if (q.restante <= 0) continue;
+        const r = (j === i) ? q.restante - nGrid : q.restante;
+        if (r <= 0) continue;
+        // Sobra direita
+        if (sobraDir.w > 0) {
+          extras += Math.min(r, Math.max(
+            Math.floor(sobraDir.w/q.l)*Math.floor(sobraDir.h/q.a),
+            Math.floor(sobraDir.w/q.a)*Math.floor(sobraDir.h/q.l)
+          ));
+        }
+        // Sobra inferior (nao conta duplo)
+        if (sobraBot.h > 0 && sobraDir.w === 0) {
+          extras += Math.min(r, Math.max(
+            Math.floor(sobraBot.w/q.l)*Math.floor(sobraBot.h/q.a),
+            Math.floor(sobraBot.w/q.a)*Math.floor(sobraBot.h/q.l)
+          ));
+        }
       }
-      totalAlocado += aA;
-    } else {
-      for (let j = 0; j < demanda.length; j++) {
-        demanda[j].restante = Math.min(demB1[j].restante, demB2[j].restante);
+
+      if (nGrid + extras > melhorTotal) {
+        melhorTotal = nGrid + extras;
+        melhorPlan = {idx: i, ori, cols, rows, nGrid, sobraDir, sobraBot};
       }
-      totalAlocado += aB;
     }
-    return totalAlocado; // uma peça por chamada de topo; recursão cuida do resto
   }
-  return totalAlocado;
-}
-
-// Conta quantas peças cabem numa chapa usando guilhotinado 2D
-function omPecasChapaGuilhotina(chapa, demanda) {
-  const dem = demanda.map(d => ({...d})); // cópia
-  return omGuilhotina(chapa.l, chapa.a, dem);
-}
-
-// Simula o preenchimento completo de uma chapa e retorna demanda atualizada
-function omPreencherChapa(chapa, demanda) {
-  const dem = demanda.map(d => ({...d}));
-  omGuilhotina(chapa.l, chapa.a, dem);
-  return dem;
+  return {total: melhorTotal, plan: melhorPlan};
 }
 
 function omOtimizar(pool, pecas) {
@@ -1727,26 +1794,55 @@ function omOtimizar(pool, pecas) {
   let totalRestante = demanda.reduce((s,p) => s + p.qty, 0);
   let usadas = [], areaChapas = 0, iter = 0;
 
-  while (totalRestante > 0 && iter++ < 200) {
-    // Escolhe a chapa que aloca mais peças restantes
-    let melhor = null, mc = 0;
+  while (totalRestante > 0 && iter++ < 500) {
+    // Escolhe a chapa do pool que aloca mais peças
+    let melhorChapa = null, melhorPlan = null, melhorTotal = 0;
     for (const c of pool) {
-      const cab = omPecasChapaGuilhotina(c, demanda);
-      if (cab > mc) { mc = cab; melhor = c; }
+      const res = omGridChapa(c.l, c.a, demanda);
+      if (res.total > melhorTotal) {
+        melhorTotal = res.total;
+        melhorChapa = c;
+        melhorPlan = res.plan;
+      }
     }
-    if (!melhor || mc === 0) break;
+    if (!melhorChapa || melhorTotal === 0) break;
 
-    // Aplica o preenchimento real na demanda
-    demanda = omPreencherChapa(melhor, demanda);
-    const novoTotal = demanda.reduce((s,p) => s + p.restante, 0);
-    const alocado = totalRestante - novoTotal;
-    totalRestante = novoTotal;
+    // Aplica o plano: desconta do tipo principal
+    const plan = melhorPlan;
+    const p = demanda[plan.idx];
+    const alocPrincipal = Math.min(plan.nGrid, p.restante);
+    p.restante -= alocPrincipal;
+    let alocado = alocPrincipal;
 
-    const ja = usadas.find(c => c.l === melhor.l && c.a === melhor.a);
-    if (ja) ja.qtd++; else usadas.push({l: melhor.l, a: melhor.a, qtd: 1});
-    areaChapas += (melhor.l/1000) * (melhor.a/1000);
+    // Desconta das sobras (todos os tipos)
+    for (let j = 0; j < demanda.length; j++) {
+      const q = demanda[j];
+      if (q.restante <= 0) continue;
+      // Sobra direita
+      if (plan.sobraDir.w > 0) {
+        const cab = Math.max(
+          Math.floor(plan.sobraDir.w/q.l)*Math.floor(plan.sobraDir.h/q.a),
+          Math.floor(plan.sobraDir.w/q.a)*Math.floor(plan.sobraDir.h/q.l)
+        );
+        const n = Math.min(cab, q.restante);
+        q.restante -= n; alocado += n;
+      }
+      // Sobra inferior
+      if (plan.sobraBot.h > 0 && plan.sobraDir.w === 0) {
+        const cab = Math.max(
+          Math.floor(plan.sobraBot.w/q.l)*Math.floor(plan.sobraBot.h/q.a),
+          Math.floor(plan.sobraBot.w/q.a)*Math.floor(plan.sobraBot.h/q.l)
+        );
+        const n = Math.min(cab, q.restante);
+        q.restante -= n; alocado += n;
+      }
+    }
 
-    if (alocado === 0) break; // segurança: nenhuma peça coube, para
+    totalRestante = demanda.reduce((s,p) => s + p.restante, 0);
+    const ja = usadas.find(c => c.l === melhorChapa.l && c.a === melhorChapa.a);
+    if (ja) ja.qtd++; else usadas.push({l: melhorChapa.l, a: melhorChapa.a, qtd: 1});
+    areaChapas += (melhorChapa.l/1000) * (melhorChapa.a/1000);
+    if (alocado === 0) break;
   }
 
   const perda = areaChapas > 0
@@ -1754,20 +1850,22 @@ function omOtimizar(pool, pecas) {
     : 100;
   return {usadas, areaChapas, areaPecas, perda};
 }
+
 function omCor(p){return p<=15?'#5DCAA5':p<=30?'#EF9F27':'#E24B4A';}
 function omCorText(p){return p<=15?'#085041':p<=30?'#633806':'#791F1F';}
 function omCorBg(p){return p<=15?'#E1F5EE':p<=30?'#FAEEDA':'#FCEBEB';}
 
 function omCalcular(){
-  if(!S.omPecas.length){alert('Adicione pelo menos uma peça.');return;}
+  if(!S.omPecas.length){alert('Adicione pelo menos uma peca.');return;}
   const chapas=Array.from(document.querySelectorAll('#tela-optmax .chip.sel')).map(el=>({l:parseInt(el.dataset.l),a:parseInt(el.dataset.a)}));
   if(!chapas.length){alert('Selecione pelo menos uma chapa.');return;}
+  // Testa cada tipo isolado + pool misto (deixa o algoritmo escolher o melhor a cada iteracao)
   const combos=[];
-  for(const c of chapas)combos.push([c]);
-  for(let i=0;i<chapas.length;i++)for(let j=i;j<chapas.length;j++)combos.push([chapas[i],chapas[j]]);
+  for(const c of chapas) combos.push([c]);
+  if(chapas.length>1) combos.push(chapas);
   const res=combos.map(c=>omOtimizar(c,S.omPecas)).sort((a,b)=>a.perda-b.perda);
   const vistos=new Set();
-  const unicos=res.filter(r=>{const k=r.usadas.map(c=>`${c.l}x${c.a}x${c.qtd}`).sort().join('|');if(vistos.has(k))return false;vistos.add(k);return true;});
+  const unicos=res.filter(r=>{const k=r.usadas.map(c=>c.l+'x'+c.a+'x'+c.qtd).sort().join('|');if(vistos.has(k))return false;vistos.add(k);return true;});
   const m=unicos[0];
   const uso=Math.min(100,Math.max(0,100-m.perda));
   const totalChapas=m.usadas.reduce((s,c)=>s+c.qtd,0);
