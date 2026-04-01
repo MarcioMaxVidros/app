@@ -362,6 +362,7 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
 .resumo-lbl{font-size:10px;color:var(--texto2);margin-top:2px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div id="app">
@@ -1709,6 +1710,11 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
 </div><!-- /desktop-content -->
 </div><!-- /app -->
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+// ══ SUPABASE ══
+const SUPA_URL = 'https://rvsjawrcnwexymjfuxwt.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ2c2phd3JjbndleHltamZ1eHd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwODI3NDQsImV4cCI6MjA5MDY1ODc0NH0.OcsFgdi3do9cDqwTkfR5J9Q2JgM-gKivE4pn__uBcTw';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+
 // ══ ESTADO ══
 const S={
   vendedor:{nome:'Rafael Mendes',iniciais:'RAF'},
@@ -2243,46 +2249,69 @@ function selecionarPerfil(p){
   else{inpU.value='rafael.mendes';inpP.value='123456';}
 }
 
-function fazerLogin(){
-  const u=document.getElementById('login-user').value.trim();
-  const p=document.getElementById('login-pass').value;
-  const usuario=USUARIOS[u];
-  if(!usuario||usuario.senha!==p){
-    alert('Usuário ou senha incorretos.');
-    return;
+async function fazerLogin(){
+  const u = document.getElementById('login-user').value.trim();
+  const p = document.getElementById('login-pass').value;
+  if(!u || !p){ alert('Preencha usuário e senha.'); return; }
+
+  // Botão de loading
+  const btnLogin = document.querySelector('.btn-login');
+  if(btnLogin){ btnLogin.textContent='Entrando...'; btnLogin.disabled=true; }
+
+  try {
+    const { data, error } = await supa
+      .from('usuarios')
+      .select('*')
+      .eq('login', u)
+      .eq('senha', p)
+      .eq('ativo', true)
+      .single();
+
+    if(error || !data){
+      alert('Usuário ou senha incorretos.');
+      if(btnLogin){ btnLogin.textContent='Entrar'; btnLogin.disabled=false; }
+      return;
+    }
+
+    const usuario = data;
+    S.vendedor = { nome: usuario.nome, iniciais: usuario.iniciais, id: usuario.id };
+    S.perfil   = usuario.perfil;
+
+    const l = document.getElementById('tela-login');
+    l.classList.add('saindo');
+    let destino;
+
+    if(usuario.perfil==='operador'||usuario.perfil==='gestor'){
+      destino='tela-producao';
+      document.getElementById('op-nome-header').textContent=usuario.nome;
+      document.getElementById('op-perfil-header').textContent=usuario.perfil==='gestor'?'Gestor · Acesso total':'Operador de Produção';
+      const btnMet=document.getElementById('btn-nav-metricas');
+      if(btnMet) btnMet.style.display=usuario.perfil==='gestor'?'flex':'none';
+      renderFilaProducao();
+    }else if(usuario.perfil==='interno'){
+      destino='tela-interno';
+      document.getElementById('int-nome-header').textContent=usuario.nome.split(' ')[0];
+      atualizarBadgeInterno();
+    }else{
+      destino='tela-home';
+      atualizarResumo();
+    }
+
+    pilha=[destino];
+    const h=document.getElementById(destino);
+    h.classList.add('ativa');
+    setTimeout(()=>l.classList.remove('ativa','saindo'),300);
+
+    try { if(localStorage.getItem('mx_modo')==='desktop'){ ativarModoDesktop(); renderSidebar(); atualizarNavDesktop(destino); } } catch(e){}
+    carregarProdutosEspeciais();
+    carregarTiposUsinagem();
+    renderUsinagemOrcamento();
+
+  } catch(e) {
+    console.error('Erro login:', e);
+    alert('Erro de conexão. Verifique a internet.');
+    if(btnLogin){ btnLogin.textContent='Entrar'; btnLogin.disabled=false; }
   }
-  // Se dispositivo configurado, aceitar o usuário independente do perfil selecionado manualmente
-  // (o admin já definiu o perfil no onboarding)
-  S.vendedor={nome:usuario.nome,iniciais:usuario.iniciais};
-  S.perfil=usuario.perfil;
-  const l=document.getElementById('tela-login');
-  l.classList.add('saindo');
-  let destino;
-  if(usuario.perfil==='operador'||usuario.perfil==='gestor'){
-    destino='tela-producao';
-    document.getElementById('op-nome-header').textContent=usuario.nome;
-    document.getElementById('op-perfil-header').textContent=usuario.perfil==='gestor'?'Gestor · Acesso total':'Operador de Produção';
-    const btnMet=document.getElementById('btn-nav-metricas');
-    if(btnMet) btnMet.style.display=usuario.perfil==='gestor'?'flex':'none';
-    renderFilaProducao();
-  }else if(usuario.perfil==='interno'){
-    destino='tela-interno';
-    document.getElementById('int-nome-header').textContent=usuario.nome.split(' ')[0];
-    atualizarBadgeInterno();
-  }else{
-    destino='tela-home';
-    atualizarResumo();
-  }
-  pilha=[destino];
-  const h=document.getElementById(destino);
-  h.classList.add('ativa');
-  setTimeout(()=>l.classList.remove('ativa','saindo'),300);
-  // Modo desktop
-  try { if(localStorage.getItem('mx_modo')==='desktop'){ ativarModoDesktop(); renderSidebar(); atualizarNavDesktop(destino); } } catch(e){}
-  // Produtos especiais
-  carregarProdutosEspeciais();
-  carregarTiposUsinagem();
-  renderUsinagemOrcamento();
 }
 
 function atualizarResumo(){
@@ -2397,7 +2426,7 @@ function cancelarObs(itemId){
   document.getElementById(`btn-conc-${itemId}`).style.display='flex';
 }
 
-function confirmarEtapa(itemId){
+async function confirmarEtapa(itemId){
   const atd=S.atendimentos[S.atdApontamento];
   if(!atd)return;
   const item=atd.itens.find(i=>String(i.id)===String(itemId));
@@ -2424,12 +2453,50 @@ function confirmarEtapa(itemId){
   }
   item.etapaAtual++;
   const expedido=item.etapaAtual>=etapas.length;
-  // Atualiza status do ATD para 'producao' na primeira etapa avançada
   if(atd.status==='pedido') atd.status='producao';
-  // Marca como concluido se todos os itens foram expedidos
   if(atd.itens.every(i=>i.etapaAtual>=(getEtapasItem(i).length))) atd.status='concluido';
   const temOcorr=tipoOcorr||textoOcorr;
   registrarAtividade('producao',`${S.atdApontamento} · ${etapaConc} · ${nomeOp}${temOcorr?' ⚠ ocorrência':''}`);
+
+  // Gravar no Supabase (background)
+  try {
+    // Atualizar status do ATD
+    await supa.from('atendimentos').update({
+      status: atd.status
+    }).eq('id', S.atdApontamento);
+
+    // Registrar etapa concluída
+    await supa.from('etapas_producao').insert({
+      atd_id: S.atdApontamento,
+      etapa: etapaConc,
+      etapa_idx: etapaIdx,
+      operador: nomeOp,
+      hora: horaAtual
+    });
+
+    // Registrar ocorrência se houver
+    if(temOcorr){
+      await supa.from('ocorrencias').insert({
+        atd_id: S.atdApontamento,
+        tipo: tipoOcorr||'Outro',
+        texto: textoOcorr||(tipoOcorr||'Ocorrência registrada'),
+        etapa: etapaConc,
+        operador: nomeOp,
+        hora: horaAtual
+      });
+    }
+
+    // Log de atividade
+    await supa.from('atividades').insert({
+      usuario_id: S.vendedor.id||null,
+      atd_id: S.atdApontamento,
+      tipo: 'producao',
+      cliente: atd.cliente?.razao||'',
+      detalhe: `${etapaConc} · ${nomeOp}${temOcorr?' ⚠ ocorrência':''}`,
+      hora: horaAtual
+    });
+  } catch(e){ console.warn('Supabase confirmarEtapa:', e); }
+
   document.getElementById('apt-itens-lista').innerHTML=atd.itens.map(i=>renderPipelineItem(i,true)).join('');
   if(document.getElementById('op-fila-lista')) renderFilaProducao();
   if(expedido) alert(`✅ ${item.descricao}\nExpedição concluída — item pronto para entrega!`);
@@ -3329,17 +3396,70 @@ function validarCampos(){
 }
 function gerarATD(){return `ATD-${S.vendedor.iniciais}-${String(S.atdSeq++).padStart(3,'0')}`;}
 function hora(){return new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
-function salvarCliente(){
+async function salvarCliente(){
   const btn=document.getElementById('btn-salvar-cliente');
   if(btn.disabled)return;
   const atd=gerarATD();
-  S.cliente={cnpj:document.getElementById('crm-cnpj').value,razao:document.getElementById('crm-razao').value,contato:document.getElementById('crm-contato').value,tel:document.getElementById('crm-tel').value,email:document.getElementById('crm-email').value,segmento:document.getElementById('crm-segmento').value,atd,hora:hora()};
+  const cliente={
+    cnpj:document.getElementById('crm-cnpj').value,
+    razao:document.getElementById('crm-razao').value,
+    contato:document.getElementById('crm-contato').value,
+    tel:document.getElementById('crm-tel').value,
+    email:document.getElementById('crm-email').value,
+    segmento:document.getElementById('crm-segmento').value,
+    atd, hora:hora()
+  };
+  S.cliente=cliente;
   S.itens=[];
-  // Registrar no BD de atendimentos com status inicial
   S.atendimentos[atd]={cliente:S.cliente,status:'orcamento',op:null,recusa:null,itens:[],tabela:S.tabelaSel||'MX1',totalEnviado:0,horaEnvio:null,revisoes:0};
-  S.atividades.unshift({tipo:'cadastro',cliente:S.cliente.razao,atd,hora:S.cliente.hora,detalhe:S.cliente.segmento});
+  S.atividades.unshift({tipo:'cadastro',cliente:cliente.razao,atd,hora:cliente.hora,detalhe:cliente.segmento});
+
+  // Gravar no Supabase (em background — não bloqueia o fluxo)
+  try {
+    // Upsert cliente (pode já existir se CNPJ duplicado passou)
+    const { data: clienteDB, error: errCli } = await supa.from('clientes').upsert({
+      cnpj: cliente.cnpj,
+      razao: cliente.razao,
+      contato: cliente.contato,
+      tel: cliente.tel,
+      email: cliente.email || null,
+      segmento: cliente.segmento,
+      usuario_id: S.vendedor.id || null
+    }, { onConflict: 'cnpj' }).select().single();
+
+    if(errCli) throw new Error('clientes: ' + errCli.message);
+
+    // Inserir atendimento com status inicial
+    const { error: errAtd } = await supa.from('atendimentos').insert({
+      id: atd,
+      cliente_id: clienteDB?.id || null,
+      usuario_id: S.vendedor.id || null,
+      status: 'orcamento',
+      tabela: S.tabelaSel || 'MX1'
+    });
+
+    if(errAtd) throw new Error('atendimentos: ' + errAtd.message);
+
+    // Log de atividade
+    await supa.from('atividades').insert({
+      usuario_id: S.vendedor.id || null,
+      atd_id: atd,
+      tipo: 'cadastro',
+      cliente: cliente.razao,
+      detalhe: cliente.segmento,
+      hora: cliente.hora
+    });
+
+    console.log('✅ Supabase: cliente e ATD gravados', atd);
+  } catch(e){
+    console.error('❌ Supabase salvarCliente:', e.message);
+    // Mostrar erro no hint do formulário sem bloquear o fluxo
+    const hint = document.getElementById('crm-cnpj-hint');
+    if(hint) hint.textContent = '⚠ Salvo localmente — erro BD: ' + e.message;
+  }
+
   document.getElementById('atd-cliente-salvo').textContent=atd;
-  document.getElementById('cliente-salvo-info').innerHTML=`<div style="font-size:15px;font-weight:500;margin-bottom:4px">${S.cliente.razao}</div><div style="font-size:12px;color:var(--texto2);margin-bottom:2px">${S.cliente.contato} · ${S.cliente.tel}</div><div style="font-size:12px;color:var(--texto2)">${S.cliente.segmento}</div><div style="font-size:11px;color:var(--texto3);margin-top:6px;font-family:var(--mono)">${atd}</div>`;
+  document.getElementById('cliente-salvo-info').innerHTML=`<div style="font-size:15px;font-weight:500;margin-bottom:4px">${cliente.razao}</div><div style="font-size:12px;color:var(--texto2);margin-bottom:2px">${cliente.contato} · ${cliente.tel}</div><div style="font-size:12px;color:var(--texto2)">${cliente.segmento}</div><div style="font-size:11px;color:var(--texto3);margin-top:6px;font-family:var(--mono)">${atd}</div>`;
   ['crm-cnpj','crm-razao','crm-contato','crm-tel','crm-email'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('crm-segmento').value='';
   document.getElementById('crm-cnpj').className='';
@@ -3489,7 +3609,7 @@ function selecionarTipo(t){
 
 function voltarTipo(){
   document.getElementById('pos-add-box').style.display='none';
-  document.getElementById('pos-add-ins-box').style.display='none';
+  document.getElementById('pos-add-box').style.display='none';
   S.tipoSel=null;mostrarPasso('tipo');renderTipos();
 }
 
@@ -3732,8 +3852,8 @@ function adicionarInsulado(){
   registrarAtividade('orcamento',`${S.itens.length} item${S.itens.length>1?'s':''}`);
   document.getElementById('btn-add-ins').style.display='none';
   document.getElementById('ins-total-box').style.display='none';
-  document.getElementById('pos-add-ins-label').textContent=`Insulado adicionado`;
-  document.getElementById('pos-add-ins-box').style.display='block';
+  document.getElementById("pos-add-label").textContent="Insulado adicionado";
+  document.getElementById('pos-add-box').style.display='block';
   renderItens();
 }
 
@@ -3742,7 +3862,7 @@ function novaMedidaIns(){
   document.getElementById('ins-larg').value='';
   document.getElementById('ins-alt').value='';
   document.getElementById('ins-qty').value='1';
-  document.getElementById('pos-add-ins-box').style.display='none';
+  document.getElementById('pos-add-box').style.display='none';
   document.getElementById('ins-total-box').style.display='none';
   document.getElementById('btn-add-ins').style.display='none';
 }
@@ -3764,7 +3884,7 @@ function renderItens(){
 function novoItem(){
   // Esconder boxes pós-adição
   document.getElementById('pos-add-box').style.display='none';
-  document.getElementById('pos-add-ins-box').style.display='none';
+  document.getElementById('pos-add-box').style.display='none';
   // Resetar seleção de produto
   S.tipoSel=null;S.espSel=null;S.corSel=null;
   S.ins={extTipo:null,extEsp:null,extCor:null,camara:null,intTipo:null,intEsp:null,intCor:null,argonio:false};
@@ -4117,34 +4237,83 @@ function renderRevisao(){
   if(c.atd) renderDesenhosOrcamento(c.atd, 'rev');
 }
 
-function enviarOrcamento(){
+async function enviarOrcamento(){
   const c=S.cliente;
   const total=S.itens.reduce((s,i)=>s+i.total,0);
   const modoRevisao=!!S._revisaoAtd;
   const atdExist=S.atendimentos[c.atd]||{};
   const novasRevisoes=(atdExist.revisoes||0)+(modoRevisao?1:0);
   const tagLabel=modoRevisao?`${c.atd} Rev.${novasRevisoes}`:c.atd;
+  const status=modoRevisao?'revisado':'enviado';
+  const h=hora();
+  const hoje=new Date().toLocaleDateString('pt-BR');
 
   registrarAtividade(modoRevisao?'revisado':'enviado',`R$ ${fmt(total)}`);
 
-  // Salvar atendimento completo
+  // Atualizar memória
   S.atendimentos[c.atd]={
     cliente:JSON.parse(JSON.stringify(c)),
     itens:JSON.parse(JSON.stringify(S.itens)),
     tabela:S.tabelaSel,
     totalEnviado:total,
-    horaEnvio:hora(),
-    dataEnvio:new Date().toLocaleDateString('pt-BR'),
-    status:modoRevisao?'revisado':'enviado',
-    op: atdExist.op||null,
-    recusa: atdExist.recusa||null,
-    revisoes: novasRevisoes,
-    desenhos: [...(atdExist.desenhos||[]), ...S._desenhosTmp]
+    horaEnvio:h,
+    dataEnvio:hoje,
+    status,
+    op:atdExist.op||null,
+    recusa:atdExist.recusa||null,
+    revisoes:novasRevisoes,
+    desenhos:[...(atdExist.desenhos||[]),...S._desenhosTmp]
   };
   S._desenhosTmp=[];
-
-  // Limpa flag de revisão
   S._revisaoAtd=null;
+
+  // Gravar no Supabase (background)
+  try {
+    // Atualizar atendimento
+    await supa.from('atendimentos').update({
+      status,
+      total_enviado: total,
+      hora_envio: h,
+      data_envio: new Date().toISOString().split('T')[0],
+      tabela: S.tabelaSel||'MX1',
+      revisoes: novasRevisoes
+    }).eq('id', c.atd);
+
+    // Deletar itens anteriores e reinserir (revisão pode alterar itens)
+    await supa.from('itens_atd').delete().eq('atd_id', c.atd);
+
+    // Inserir itens atuais
+    if(S.itens.length){
+      await supa.from('itens_atd').insert(
+        S.itens.map((item,idx)=>({
+          atd_id: c.atd,
+          descricao: item.descricao,
+          detalhe: item.detalhe,
+          larg: item.larg,
+          alt: item.alt,
+          l_r: item.lR,
+          a_r: item.aR,
+          qty: item.qty,
+          area: item.area,
+          total: item.total,
+          warn: item.warn||false,
+          usinagem_modelado: item.usinagem?.modelado||false,
+          usinagem_tipos: item.usinagem?.tipos||[],
+          ordem: idx
+        }))
+      );
+    }
+
+    // Log de atividade
+    await supa.from('atividades').insert({
+      usuario_id: S.vendedor.id||null,
+      atd_id: c.atd,
+      tipo: status,
+      cliente: c.razao,
+      detalhe: `R$ ${fmt(total)}`,
+      hora: h
+    });
+  } catch(e){ console.warn('Supabase enviarOrcamento:', e); }
 
   // Monta e abre WhatsApp
   const msg=montarMsgWpp(c,S.itens,total,modoRevisao?tagLabel:null);
@@ -5359,7 +5528,7 @@ function fecharEfetivacao(){
   document.getElementById('apr-acoes').style.display = 'flex';
 }
 
-function efetivarPedido(){
+async function efetivarPedido(){
   const atd = S.atendimentos[_atdAprovacao];
   if(!atd) return;
   const opNum = (document.getElementById('apr-op-numero')?.value.trim()) || _atdAprovacao.replace('ATD-','OP-');
@@ -5370,6 +5539,28 @@ function efetivarPedido(){
   atd.op = {numero:opNum, efetivadoPor:S.vendedor.nome, efetivadoEm:agora};
   atd.dataEfetivacao = hoje;
   atd.prazoMaxDias = prazo;
+
+  // Gravar no Supabase
+  try {
+    await supa.from('atendimentos').update({
+      status: 'pedido',
+      op_numero: opNum,
+      op_efetivado_por: S.vendedor.nome,
+      op_efetivado_em: agora,
+      data_efetivacao: new Date().toISOString().split('T')[0],
+      prazo_max_dias: prazo
+    }).eq('id', _atdAprovacao);
+
+    await supa.from('atividades').insert({
+      usuario_id: S.vendedor.id||null,
+      atd_id: _atdAprovacao,
+      tipo: 'pedido',
+      cliente: atd.cliente?.razao||'',
+      detalhe: `OP: ${opNum} · ${prazo} dias`,
+      hora: agora
+    });
+  } catch(e){ console.warn('Supabase efetivarPedido:', e); }
+
   document.getElementById('apr-op-form').style.display = 'none';
   document.getElementById('apr-acoes').style.display = 'none';
   document.getElementById('apr-alerta').innerHTML=`
@@ -5395,19 +5586,40 @@ function abrirRecusa(){
 function cancelarRecusa(){
   document.getElementById('apr-recusa-form').style.display='none';
 }
-function confirmarRecusa(){
+async function confirmarRecusa(){
   const motivo = document.getElementById('apr-motivo').value.trim();
   if(!motivo){ alert('Informe o motivo da recusa.'); return; }
   const atd = S.atendimentos[_atdAprovacao];
   if(!atd) return;
+  const agora = hora();
   atd.status='recusado';
-  atd.recusa={motivo,recusadoPor:S.vendedor.nome,recusadoEm:hora()};
+  atd.recusa={motivo, recusadoPor:S.vendedor.nome, recusadoEm:agora};
+
+  // Gravar no Supabase
+  try {
+    await supa.from('atendimentos').update({
+      status: 'recusado',
+      recusa_motivo: motivo,
+      recusa_por: S.vendedor.nome,
+      recusa_em: agora
+    }).eq('id', _atdAprovacao);
+
+    await supa.from('atividades').insert({
+      usuario_id: S.vendedor.id||null,
+      atd_id: _atdAprovacao,
+      tipo: 'recusado',
+      cliente: atd.cliente?.razao||'',
+      detalhe: motivo,
+      hora: agora
+    });
+  } catch(e){ console.warn('Supabase confirmarRecusa:', e); }
+
   document.getElementById('apr-recusa-form').style.display='none';
   document.getElementById('apr-acoes').style.display='none';
   document.getElementById('apr-alerta').innerHTML=`
     <div class="alerta alerta-erro">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      Recusado por ${S.vendedor.nome} · ${atd.recusa.recusadoEm} · <strong>Motivo:</strong> ${motivo}
+      Recusado por ${S.vendedor.nome} · ${agora} · <strong>Motivo:</strong> ${motivo}
     </div>`;
   atualizarBadgeInterno();
   renderFilaInterno();
