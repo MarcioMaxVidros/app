@@ -3845,14 +3845,24 @@ function adicionarInsulado(){
     if(idxExp>=0) pipelineIns.splice(idxExp,0,'Usinagem');
   }
   S.itens.push({id:Date.now(),descricao,detalhe:`${q} pç${q>1?'s':''} · ${lR}×${aR}mm`,larg:l,alt:a,lR,aR,qty:q,area,total,warn:false,usinagem:{modelado:ins.modelado},pipeline:pipelineIns});
-  // Resetar modelado para próxima peça
+
+  // Reset completo pós-adição
+  S.usinagem={furos:false,modelado:false};
   S.ins.modelado=false;
-  const togM=document.getElementById('toggle-ins-modelado');
-  if(togM) togM.className='toggle-track';
+  const togM=document.getElementById('toggle-modelado'); if(togM) togM.className='toggle-track';
+  const togU=document.getElementById('toggle-usinagem-bloco'); if(togU) togU.className='toggle-track';
+  const expU=document.getElementById('orc-usinagem-expand'); if(expU) expU.style.display='none';
+  resetUsinagemOrcamento();
+
   registrarAtividade('orcamento',`${S.itens.length} item${S.itens.length>1?'s':''}`);
   document.getElementById('btn-add-ins').style.display='none';
   document.getElementById('ins-total-box').style.display='none';
-  document.getElementById("pos-add-label").textContent="Insulado adicionado";
+  document.getElementById('item-total-box').style.display='none';
+
+  // Configurar pos-add-box para modo insulado
+  const btnNovaMedida = document.getElementById('btn-nova-medida');
+  if(btnNovaMedida) btnNovaMedida.onclick = novaMedidaIns;
+  document.getElementById('pos-add-label').textContent='Insulado adicionado ✓';
   document.getElementById('pos-add-box').style.display='block';
   renderItens();
 }
