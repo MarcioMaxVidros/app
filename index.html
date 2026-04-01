@@ -538,12 +538,20 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
     <div class="login-welcome">Bem-vindo</div>
     <div class="login-welcome-sub">Entre com suas credenciais</div>
     <div class="login-card">
-      <label>Perfil de acesso</label>
-      <div style="display:flex;gap:6px;margin-bottom:6px">
-        <button id="perfil-btn-vendedor" onclick="selecionarPerfil('vendedor')" style="flex:1;height:36px;border-radius:9px;border:.8px solid rgba(100,160,255,.45);background:rgba(100,160,255,.15);color:#fff;font-family:var(--font);font-size:11px;font-weight:500;cursor:pointer;">Vendedor</button>
-        <button id="perfil-btn-interno" onclick="selecionarPerfil('interno')" style="flex:1;height:36px;border-radius:9px;border:.8px solid rgba(100,160,255,.15);background:rgba(255,255,255,.04);color:rgba(255,255,255,.45);font-family:var(--font);font-size:11px;cursor:pointer;">Interno</button>
-        <button id="perfil-btn-operador" onclick="selecionarPerfil('operador')" style="flex:1;height:36px;border-radius:9px;border:.8px solid rgba(100,160,255,.15);background:rgba(255,255,255,.04);color:rgba(255,255,255,.45);font-family:var(--font);font-size:11px;cursor:pointer;">Operador</button>
-        <button id="perfil-btn-gestor" onclick="selecionarPerfil('gestor')" style="flex:1;height:36px;border-radius:9px;border:.8px solid rgba(100,160,255,.15);background:rgba(255,255,255,.04);color:rgba(255,255,255,.45);font-family:var(--font);font-size:11px;cursor:pointer;">Gestor</button>
+      <!-- Seletor de perfil — oculto quando dispositivo já foi configurado -->
+      <div id="login-perfil-section">
+        <label>Perfil de acesso</label>
+        <div style="display:flex;gap:6px;margin-bottom:6px">
+          <button id="perfil-btn-vendedor" onclick="selecionarPerfil('vendedor')" style="flex:1;height:36px;border-radius:9px;border:.8px solid rgba(100,160,255,.45);background:rgba(100,160,255,.15);color:#fff;font-family:var(--font);font-size:11px;font-weight:500;cursor:pointer;">Vendedor</button>
+          <button id="perfil-btn-interno" onclick="selecionarPerfil('interno')" style="flex:1;height:36px;border-radius:9px;border:.8px solid rgba(100,160,255,.15);background:rgba(255,255,255,.04);color:rgba(255,255,255,.45);font-family:var(--font);font-size:11px;cursor:pointer;">Interno</button>
+          <button id="perfil-btn-operador" onclick="selecionarPerfil('operador')" style="flex:1;height:36px;border-radius:9px;border:.8px solid rgba(100,160,255,.15);background:rgba(255,255,255,.04);color:rgba(255,255,255,.45);font-family:var(--font);font-size:11px;cursor:pointer;">Operador</button>
+          <button id="perfil-btn-gestor" onclick="selecionarPerfil('gestor')" style="flex:1;height:36px;border-radius:9px;border:.8px solid rgba(100,160,255,.15);background:rgba(255,255,255,.04);color:rgba(255,255,255,.45);font-family:var(--font);font-size:11px;cursor:pointer;">Gestor</button>
+        </div>
+      </div>
+      <!-- Badge de perfil fixo — visível quando dispositivo configurado -->
+      <div id="login-perfil-fixo" style="display:none;margin-bottom:10px">
+        <label>Dispositivo configurado para</label>
+        <div id="login-perfil-fixo-label" style="font-size:13px;font-weight:600;color:#fff;padding:8px 0 4px"></div>
       </div>
       <label>Usuário</label>
       <div class="login-field">
@@ -809,12 +817,12 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
         <div style="background:var(--bg);border:.5px solid var(--borda);border-radius:var(--r);padding:12px;margin-bottom:10px">
 
           <!-- Linha 1: Usinagem (toggle → expande lista) -->
-          <div class="toggle-row" onclick="toggleUsinagemBloco()" style="cursor:pointer">
+          <div class="toggle-row" style="cursor:pointer" onclick="toggleUsinagemBloco()">
             <div>
               <div style="font-size:12px;font-weight:500">Usinagem</div>
               <div style="font-size:10px;color:var(--texto3)">Furos, recortes, cantos especiais</div>
             </div>
-            <div class="toggle-track" id="toggle-usinagem-bloco"><div class="toggle-dot"></div></div>
+            <div class="toggle-track" id="toggle-usinagem-bloco" onclick="event.stopPropagation();toggleUsinagemBloco()"><div class="toggle-dot"></div></div>
           </div>
           <!-- Lista expandida de tipos -->
           <div id="orc-usinagem-expand" style="display:none;margin-top:10px;padding-top:10px;border-top:.5px solid var(--borda)">
@@ -851,11 +859,11 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
               <div style="font-size:12px;font-weight:500">Desenho técnico</div>
               <div style="font-size:10px;color:var(--texto3)">Câmera, galeria ou arquivo</div>
             </div>
-            <label for="orc-file-input"
-              style="display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:8px;border:.5px solid var(--borda);background:var(--card);cursor:pointer;font-size:11px;font-weight:500;color:var(--texto2);white-space:nowrap">
+            <button onclick="document.getElementById('orc-file-input').click()"
+              style="display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:8px;border:.5px solid var(--borda);background:var(--card);cursor:pointer;font-size:11px;font-weight:500;color:var(--texto2);white-space:nowrap;font-family:var(--font)">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               📎 Anexar
-            </label>
+            </button>
           </div>
         </div>
 
@@ -1773,6 +1781,11 @@ const S={
   S.atendimentos['ATD-RAF-001']=atd1;
   S.atendimentos['ATD-RAF-002']=atd2;
   S.atendimentos['ATD-ANA-001']=atd3;
+  // ATD-RAF-003 efetivado — aparece na fila do operador
+  atd4.status='pedido';
+  atd4.op={numero:'OP-RAF-003',efetivadoPor:'Carlos Santos',efetivadoEm:'14:30'};
+  atd4.dataEfetivacao='31/03/2026';
+  atd4.prazoMaxDias=15;
   S.atendimentos['ATD-RAF-003']=atd4;
   // ATDs do vendedor interno Carlos — follow-up "Meus"
   S.atendimentos['ATD-CAR-001']={
@@ -2184,6 +2197,25 @@ function irParaLogin(){
   if(pin){ pin.classList.remove('ativa'); pin.style.webkitTransform='translate3d(-30%,0,0)'; pin.style.transform='translate3d(-30%,0,0)'; }
   if(login){ login.classList.add('ativa'); login.style.webkitTransform='translate3d(0,0,0)'; login.style.transform='translate3d(0,0,0)'; }
   setTimeout(()=>{ if(pin){ pin.style.webkitTransform=''; pin.style.transform=''; } },300);
+
+  // Se dispositivo configurado: ocultar seletor, mostrar badge de perfil fixo
+  try {
+    const perfilSalvo = localStorage.getItem('mx_perfil_padrao');
+    const usuarioSalvo = localStorage.getItem('mx_usuario_padrao');
+    const secSel   = document.getElementById('login-perfil-section');
+    const secFixo  = document.getElementById('login-perfil-fixo');
+    const lblFixo  = document.getElementById('login-perfil-fixo-label');
+    const LABELS   = {vendedor:'Vendedor Externo',interno:'Vendedor Interno',operador:'Operador de Produção',gestor:'Gestor'};
+    if(perfilSalvo && usuarioSalvo){
+      if(secSel)  secSel.style.display  = 'none';
+      if(secFixo) secFixo.style.display = 'block';
+      if(lblFixo) lblFixo.textContent   = LABELS[perfilSalvo] || perfilSalvo;
+      selecionarPerfil(perfilSalvo);
+    } else {
+      if(secSel)  secSel.style.display  = 'block';
+      if(secFixo) secFixo.style.display = 'none';
+    }
+  } catch(e){}
 }
 
 function selecionarPerfil(p){
@@ -2216,13 +2248,11 @@ function fazerLogin(){
   const p=document.getElementById('login-pass').value;
   const usuario=USUARIOS[u];
   if(!usuario||usuario.senha!==p){
-    alert('Usuário ou senha incorretos.\n\nVendedor: rafael.mendes / 123456\nInterno: carlos.interno / 123456\nOperador: joao.silva / op1234\nGestor: ana.costa / 123456');
+    alert('Usuário ou senha incorretos.');
     return;
   }
-  if(usuario.perfil!=='gestor'&&usuario.perfil!==_perfilSel){
-    alert(`Este usuário é ${usuario.perfil}. Selecione o perfil "${usuario.perfil}" no seletor acima.`);
-    return;
-  }
+  // Se dispositivo configurado, aceitar o usuário independente do perfil selecionado manualmente
+  // (o admin já definiu o perfil no onboarding)
   S.vendedor={nome:usuario.nome,iniciais:usuario.iniciais};
   S.perfil=usuario.perfil;
   const l=document.getElementById('tela-login');
@@ -2663,6 +2693,17 @@ function utUnidade(un){
 
 function carregarTiposUsinagem(){
   try{ const r=localStorage.getItem('mx_tipos_usinagem'); if(r) S.tiposUsinagem=JSON.parse(r); }catch(e){ S.tiposUsinagem=[]; }
+  // Se nenhum tipo cadastrado, carregar padrões de demonstração
+  if(!S.tiposUsinagem.length){
+    S.tiposUsinagem=[
+      {id:1,nome:'Furo simples',unidade:'unidade'},
+      {id:2,nome:'Furo com rebaixo',unidade:'unidade'},
+      {id:3,nome:'Recorte reto',unidade:'unidade'},
+      {id:4,nome:'Recorte curvo',unidade:'unidade'},
+      {id:5,nome:'Canto reto cortado',unidade:'unidade'},
+      {id:6,nome:'Canto arredondado',unidade:'unidade'},
+    ];
+  }
 }
 
 function persistirTiposUsinagem(){
@@ -3017,6 +3058,9 @@ function anexarDesenhoTmp(inp){
   reader.onload = e => {
     S._desenhosTmp.push({ dataUrl: e.target.result, nome: file.name, tipo: file.type, hora: hora() });
     renderDesenhosOrcTmp();
+    // Restaurar estado dos botões após retorno do file picker
+    const passo = document.getElementById('passo-insulado')?.style.display !== 'none' ? 'insulado' : 'config';
+    if(passo==='insulado') calcInsulado(); else calcItem();
     // Atualizar revisão se visível
     if(document.querySelector('#tela-revisao.ativa')) renderRevisao();
   };
@@ -3370,10 +3414,14 @@ function mostrarPasso(passo){
   const btnNovaMedida = document.getElementById('btn-nova-medida');
   if(btnAdd)    btnAdd.style.display    = 'none';
   if(btnAddIns) btnAddIns.style.display = 'none';
-  // Toggle modelado: id unificado serve para config; insulado usa toggle-ins-modelado no DOM próprio
   // Sincronizar estado do toggle-modelado
   const togM = document.getElementById('toggle-modelado');
   if(togM) togM.className = 'toggle-track'+(S.usinagem.modelado?' on':'');
+  // Sincronizar toggle de usinagem
+  const togU = document.getElementById('toggle-usinagem-bloco');
+  const expU = document.getElementById('orc-usinagem-expand');
+  if(togU) togU.className = 'toggle-track'+(S.usinagem.furos?' on':'');
+  if(expU) expU.style.display = S.usinagem.furos ? 'block' : 'none';
   // Nova medida: diferente por passo
   if(btnNovaMedida) btnNovaMedida.onclick = passo==='insulado' ? novaMedidaIns : novaMedida;
   // pos-add-box: garantir oculto ao trocar passo
@@ -3457,25 +3505,41 @@ function selChip(chave,val,el){
 function adjQty(d){const i=document.getElementById('orc-qty');i.value=Math.max(1,(parseInt(i.value)||1)+d);calcItem();}
 
 function toggleUsinagemBloco(){
-  S.usinagem.furos = !S.usinagem.furos; // furos = usinagem ativa
+  S.usinagem.furos = !S.usinagem.furos;
   const tog = document.getElementById('toggle-usinagem-bloco');
   const expand = document.getElementById('orc-usinagem-expand');
   if(tog) tog.className = 'toggle-track'+(S.usinagem.furos?' on':'');
   if(expand) expand.style.display = S.usinagem.furos ? 'block' : 'none';
-  if(!S.usinagem.furos) resetUsinagemOrcamento();
-  // Recalcular
-  const passo = document.getElementById('passo-insulado')?.style.display !== 'none' ? 'insulado' : 'config';
-  if(passo==='insulado') calcInsulado(); else calcItem();
+  if(S.usinagem.furos){
+    renderUsinagemOrcamento(); // garante que os campos existem no DOM
+  } else {
+    resetUsinagemOrcamento();
+  }
+  // Só recalcular se tiver dados suficientes para não esconder o btn-add
+  if(S.tipoSel && S.espSel && S.corSel &&
+     parseFloat(document.getElementById('orc-larg')?.value||0) &&
+     parseFloat(document.getElementById('orc-alt')?.value||0)){
+    const passo = document.getElementById('passo-insulado')?.style.display !== 'none' ? 'insulado' : 'config';
+    if(passo==='insulado') calcInsulado(); else calcItem();
+  }
 }
 
 function toggleModelado(){
   S.usinagem.modelado = !S.usinagem.modelado;
-  S.ins.modelado = S.usinagem.modelado; // sincronizar insulado
+  S.ins.modelado = S.usinagem.modelado;
   const tog = document.getElementById('toggle-modelado');
   if(tog) tog.className = 'toggle-track'+(S.usinagem.modelado?' on':'');
-  // Recalcular o que estiver ativo
+  // Só recalcular se tiver dados suficientes
+  const temDados = S.tipoSel && S.espSel && S.corSel &&
+    parseFloat(document.getElementById('orc-larg')?.value||0) &&
+    parseFloat(document.getElementById('orc-alt')?.value||0);
   const passo = document.getElementById('passo-insulado')?.style.display !== 'none' ? 'insulado' : 'config';
-  if(passo==='insulado') calcInsulado(); else calcItem();
+  if(passo==='insulado'){
+    const ins=S.ins;
+    if(ins.extTipo&&ins.extEsp&&ins.extCor&&ins.camara&&ins.intTipo&&ins.intEsp&&ins.intCor) calcInsulado();
+  } else if(temDados){
+    calcItem();
+  }
 }
 
 function toggleInsuladoModelado(){ toggleModelado(); }
@@ -3485,7 +3549,8 @@ function calcItem(){
   const a=parseFloat(document.getElementById('orc-alt').value)||0;
   const q=Math.max(1,parseInt(document.getElementById('orc-qty').value)||1);
   document.getElementById('orc-qty').value=q;
-  if(!l||!a||!S.tipoSel||!S.espSel||!S.corSel){document.getElementById('item-total-box').style.display='none';document.getElementById('btn-add').style.display='none';return;}
+  if(!l||!a||!S.tipoSel){document.getElementById('item-total-box').style.display='none';document.getElementById('btn-add').style.display='none';return;}
+  if(!S.espSel||!S.corSel){document.getElementById('item-total-box').style.display='none';document.getElementById('btn-add').style.display='none';return;}
   const lR=arred50(l),aR=arred50(a);
   const ab=document.getElementById('arred-box');
   if(lR!==l||aR!==a){ab.style.display='block';document.getElementById('arred-dig').textContent=`${l} × ${a} mm`;document.getElementById('arred-cob').textContent=`${lR} × ${aR} mm`;}
@@ -5228,7 +5293,7 @@ function abrirAprovacao(atdNum){
   document.getElementById('apr-sub').textContent = atd.cliente.razao;
   document.getElementById('apr-recusa-form').style.display='none';
   document.getElementById('apr-motivo').value='';
-  const jaProcessado = atd.status !== 'enviado';
+  const jaProcessado = !['enviado','revisado'].includes(atd.status);
   document.getElementById('apr-acoes').style.display = jaProcessado?'none':'flex';
   const totalGeral = atd.itens.reduce((s,i)=>s+i.total,0);
   document.getElementById('apr-cliente-card').innerHTML=`
