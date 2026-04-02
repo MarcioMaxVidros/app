@@ -2891,13 +2891,12 @@ async function carregarDadosBD(usuario){
     if(usuario.perfil === 'vendedor'){
       query = query.eq('usuario_id', usuario.id);
     }
-    // Operador/gestor/interno veem apenas os relevantes
+    // Operador vê apenas em produção
     if(usuario.perfil === 'operador'){
       query = query.in('status', ['pedido','producao','concluido']);
     }
-    if(usuario.perfil === 'interno'){
-      query = query.in('status', ['enviado','revisado','pedido','producao','concluido','recusado']);
-    }
+    // Interno e gestor veem tudo
+    // (sem filtro adicional — já retorna os últimos 200)
 
     const { data: atds, error } = await query;
     if(error) throw error;
@@ -2958,6 +2957,10 @@ async function carregarDadosBD(usuario){
     }
     if(usuario.perfil === 'operador' || usuario.perfil === 'gestor'){
       renderFilaProducao();
+    }
+    if(usuario.perfil === 'gestor'){
+      // Gestor também vê a fila de aprovações
+      atualizarBadgeInterno();
     }
     if(usuario.perfil === 'vendedor'){
       atualizarResumo();
@@ -4200,9 +4203,9 @@ function gerarPdfConfirmacao(atdNum){
 
   // Badge status
   doc.setFillColor(225,245,238); doc.setDrawColor(93,202,165);
-  doc.roundedRect(pad, y, 80, 8, 2, 2, 'FD');
+  doc.roundedRect(pad, y, 90, 8, 2, 2, 'FD');
   doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(8,80,65);
-  doc.text('Pedido efetivado — em producao', pad+4, y+5.5);
+  doc.text('Pedido efetivado - em producao', pad+4, y+5.5);
   y+=16;
 
   // Cliente
@@ -4212,7 +4215,7 @@ function gerarPdfConfirmacao(atdNum){
   doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(26,26,24);
   doc.text(c.razao, pad+4, y+13);
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(95,94,90);
-  doc.text(`${c.contato}  ·  ${c.tel}  ·  ${c.segmento}`, pad+4, y+19);
+  doc.text(`${c.contato}  .  ${c.tel}  .  ${c.segmento}`, pad+4, y+19);
   doc.text(`CNPJ: ${c.cnpj}`, pad+4, y+24);
   y+=34;
 
@@ -4248,28 +4251,27 @@ function gerarPdfConfirmacao(atdNum){
 
   // Responsáveis
   const mw=(W-pad*2-8)/2;
+  const iniciais = atdNum.split('-')[1]||'';
+  const NOMES_VND = {RAF:'Rafael Mendes', ANA:'Ana Paula Costa', CAR:'Carlos Santos', JOS:'Joao Silva', MAS:'Maria Souza'};
+  const nomeVnd = NOMES_VND[iniciais] || iniciais;
   // Vendedor
   doc.setFillColor(242,241,239); doc.rect(pad, y, mw, 24, 'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(95,94,90);
-  doc.text('VENDEDOR RESPONSÁVEL', pad+4, y+6);
+  doc.text('VENDEDOR RESPONSAVEL', pad+4, y+6);
   doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(26,26,24);
-  // Buscar nome do vendedor pelo ATD
-  const iniciais = atdNum.split('-')[1]||'';
-  const vndNome = Object.values(S.atendimentos[atdNum]?{...S}:{}).length ? c.atd : atdNum;
-  doc.text(iniciais==='RAF'?'Rafael Mendes':iniciais==='ANA'?'Ana Paula Costa':'Vendedor', pad+4, y+13);
+  doc.text(nomeVnd, pad+4, y+13);
   doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(95,94,90);
-  doc.text(`Vendedor externo · ${iniciais}`, pad+4, y+18);
-  doc.setFont('helvetica','normal'); doc.setFontSize(8);
+  doc.text(`Iniciais: ${iniciais}`, pad+4, y+18);
   doc.text(atdNum, pad+4, y+22);
   // Interno
   doc.setFillColor(225,245,238); doc.rect(pad+mw+8, y, mw, 24, 'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(95,94,90);
   doc.text('EFETIVADO POR', pad+mw+12, y+6);
   doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(26,26,24);
-  doc.text(op.efetivadoPor, pad+mw+12, y+13);
+  doc.text(op.efetivadoPor||'', pad+mw+12, y+13);
   doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(95,94,90);
   doc.text('Vendedor interno', pad+mw+12, y+18);
-  doc.text(`${op.numero}  ·  ${op.efetivadoEm}`, pad+mw+12, y+22);
+  doc.text(`${op.numero}  .  ${op.efetivadoEm||''}`, pad+mw+12, y+22);
   y+=32;
 
   // Nota
