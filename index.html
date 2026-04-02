@@ -1153,11 +1153,12 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
     </div>
   </div>
   <div class="body">
-    <!-- tabs só visíveis para interno -->
+    <!-- tabs só visíveis para interno/admin -->
     <div id="fup-tabs-wrap" style="display:none">
       <div class="fup-tabs">
-        <button class="fup-tab ativo" id="fup-tab-meus"    onclick="fupAba('meus')">Meus orçamentos</button>
-        <button class="fup-tab"      id="fup-tab-externos" onclick="fupAba('externos')">Externos</button>
+        <button class="fup-tab ativo" id="fup-tab-todos"    onclick="fupAba('todos')">Todos</button>
+        <button class="fup-tab"       id="fup-tab-meus"     onclick="fupAba('meus')">Meus</button>
+        <button class="fup-tab"       id="fup-tab-externos" onclick="fupAba('externos')">Por Vendedor</button>
       </div>
     </div>
     <!-- seletor de vendedor externo (só interno, aba externos) -->
@@ -1700,6 +1701,103 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
   </div>
 </div>
 
+<!-- TELA ADMIN -->
+<div class="tela" id="tela-admin">
+  <div class="topbar" style="background:#1B2A4A">
+    <div class="topbar-row">
+      <div style="flex:1">
+        <h1 id="adm-nome-header">Admin</h1>
+        <p style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px">Painel de administração</p>
+      </div>
+      <button onclick="sair()" style="background:rgba(255,255,255,.12);border:none;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+    <!-- Tabs -->
+    <div style="display:flex;gap:0;margin-top:8px">
+      <button id="adm-tab-usuarios" onclick="admAba('usuarios')" style="flex:1;padding:8px 0;font-size:12px;font-weight:600;color:#fff;background:rgba(255,255,255,.15);border:none;border-radius:8px 8px 0 0;cursor:pointer;font-family:var(--font)">Usuários</button>
+      <button id="adm-tab-produtos" onclick="admAba('produtos')" style="flex:1;padding:8px 0;font-size:12px;font-weight:500;color:rgba(255,255,255,.5);background:none;border:none;cursor:pointer;font-family:var(--font)">Produtos</button>
+    </div>
+  </div>
+  <div class="body">
+
+    <!-- ABA USUÁRIOS -->
+    <div id="adm-sec-usuarios">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <p class="sec-label" style="margin:0">Usuários cadastrados</p>
+        <button class="btn btn-primario btn-sm" onclick="admNovoUsuario()" style="width:auto;padding:0 14px">+ Novo</button>
+      </div>
+      <div id="adm-usuarios-lista"></div>
+
+      <!-- Form novo/editar usuário -->
+      <div id="adm-form-usuario" style="display:none;margin-top:14px">
+        <div class="card">
+          <div class="card-titulo" id="adm-form-titulo">Novo usuário</div>
+          <div class="campo"><label>Login</label><input id="adm-u-login" type="text" placeholder="ex: joao.silva" autocomplete="off"></div>
+          <div class="campo"><label>Senha</label><input id="adm-u-senha" type="text" placeholder="mínimo 4 caracteres"></div>
+          <div class="campo"><label>Nome completo</label><input id="adm-u-nome" type="text" placeholder="ex: João Silva"></div>
+          <div class="campo"><label>Iniciais (3 letras)</label><input id="adm-u-iniciais" type="text" maxlength="3" placeholder="ex: JOS" style="text-transform:uppercase"></div>
+          <div class="campo">
+            <label>Perfil</label>
+            <select id="adm-u-perfil">
+              <option value="vendedor">Vendedor Externo</option>
+              <option value="interno">Vendedor Interno</option>
+              <option value="operador">Operador de Produção</option>
+              <option value="gestor">Gestor</option>
+              <option value="pcp">PCP</option>
+            </select>
+          </div>
+          <div id="adm-u-erro" style="font-size:11px;color:var(--vermelho);margin-bottom:8px;display:none"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secundario btn-sm" style="flex:1" onclick="admCancelarUsuario()">Cancelar</button>
+            <button class="btn btn-primario btn-sm" style="flex:2" onclick="admSalvarUsuario()">Salvar usuário</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ABA PRODUTOS -->
+    <div id="adm-sec-produtos" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <p class="sec-label" style="margin:0">Catálogo de produtos</p>
+        <button class="btn btn-primario btn-sm" onclick="admNovoProduto()" style="width:auto;padding:0 14px">+ Novo</button>
+      </div>
+      <div id="adm-produtos-lista"></div>
+
+      <!-- Form novo/editar produto -->
+      <div id="adm-form-produto" style="display:none;margin-top:14px">
+        <div class="card">
+          <div class="card-titulo" id="adm-prod-titulo">Novo produto</div>
+          <div class="campo"><label>Nome</label><input id="adm-p-nome" type="text" placeholder="ex: Vidro Comum"></div>
+          <div class="campo"><label>Categoria</label>
+            <select id="adm-p-categoria">
+              <option value="comum">Vidro Comum</option>
+              <option value="temperado">Vidro Temperado</option>
+              <option value="laminado">Vidro Laminado</option>
+              <option value="composto">Temperado + Laminado</option>
+              <option value="insulado">Vidro Insulado</option>
+              <option value="especial">Produto Especial</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:8px">
+            <div class="campo" style="flex:1"><label>Preço MX1 (R$/m²)</label><input id="adm-p-mx1" type="number" step="0.01" placeholder="0,00"></div>
+            <div class="campo" style="flex:1"><label>Preço MX2</label><input id="adm-p-mx2" type="number" step="0.01" placeholder="0,00"></div>
+            <div class="campo" style="flex:1"><label>Preço MX3</label><input id="adm-p-mx3" type="number" step="0.01" placeholder="0,00"></div>
+          </div>
+          <div class="campo"><label>Prazo de produção (dias)</label><input id="adm-p-prazo" type="number" value="10"></div>
+          <div id="adm-p-erro" style="font-size:11px;color:var(--vermelho);margin-bottom:8px;display:none"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secundario btn-sm" style="flex:1" onclick="admCancelarProduto()">Cancelar</button>
+            <button class="btn btn-primario btn-sm" style="flex:2" onclick="admSalvarProduto()">Salvar produto</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:20px"></div>
+  </div>
+</div>
+
 <!-- Banner instalação iOS Safari -->
 <div id="ios-install-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#1B3A6B;color:#fff;padding:14px 18px calc(env(safe-area-inset-bottom,0px) + 14px);font-family:var(--font);z-index:9999;border-radius:16px 16px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.2)">
   <div style="display:flex;align-items:flex-start;gap:12px">
@@ -1842,6 +1940,7 @@ const USUARIOS={
   'joao.silva':      {senha:'op1234', nome:'João Silva',      iniciais:'JOS', perfil:'operador'},
   'maria.souza':     {senha:'op1234', nome:'Maria Souza',     iniciais:'MAS', perfil:'operador'},
   'carlos.interno':  {senha:'123456', nome:'Carlos Santos',   iniciais:'CAR', perfil:'interno'},
+  'marcio.ribeiro':  {senha:'1981',   nome:'Marcio Ribeiro',  iniciais:'MRB', perfil:'admin'},
 };
 
 // ── Pipelines por tipo de vidro ──
@@ -1853,10 +1952,9 @@ const PIPELINE={
 };
 
 function getPipelineInsulado(ins){
-  const etapas=['Corte'];
-  const temExt=ins.extTipo&&ins.extTipo!=='Vidro Comum';
-  const temInt=ins.intTipo&&ins.intTipo!=='Vidro Comum';
-  etapas.push('Lapidação');
+  const etapas=['Corte','Lapidação'];
+  const temUsin = ins.modelado || ins.desenho || (ins.tipos && ins.tipos.length > 0);
+  if(temUsin) etapas.push('Usinagem'); // sempre após Lapidação
   etapas.push('Lavagem');
   if(ins.extTipo==='Vidro Temperado'||ins.intTipo==='Vidro Temperado'||ins.extTipo==='Temperado + Laminado'||ins.intTipo==='Temperado + Laminado') etapas.push('Têmpera');
   if(ins.extTipo==='Vidro Laminado'||ins.intTipo==='Vidro Laminado'||ins.extTipo==='Temperado + Laminado'||ins.intTipo==='Temperado + Laminado') etapas.push('Laminação');
@@ -1881,16 +1979,21 @@ function getEtapasItem(item){
       else etapas=[...PIPELINE['Vidro Temperado']];
     }
   }
-  // Inserir Usinagem antes de Expedição se o item tiver usinagem ou desenho técnico
+  // Usinagem sempre após Lapidação
   const temUsinagem = item.usinagem && (
     item.usinagem.modelado ||
     item.usinagem.desenho ||
     (item.usinagem.tipos && item.usinagem.tipos.length > 0)
   );
   if(temUsinagem && !etapas.includes('Usinagem')){
-    const idxExp = etapas.indexOf('Expedição');
-    if(idxExp >= 0) etapas.splice(idxExp, 0, 'Usinagem');
-    else etapas.push('Usinagem');
+    // Garantir que Lapidação existe antes de Usinagem
+    if(!etapas.includes('Lapidação')){
+      const idxCorte = etapas.indexOf('Corte');
+      if(idxCorte >= 0) etapas.splice(idxCorte+1, 0, 'Lapidação');
+    }
+    // Inserir Usinagem sempre após Lapidação
+    const idxLap = etapas.indexOf('Lapidação');
+    etapas.splice(idxLap+1, 0, 'Usinagem');
   }
   return etapas;
 }
@@ -2287,7 +2390,11 @@ async function fazerLogin(){
     l.classList.add('saindo');
     let destino;
 
-    if(usuario.perfil==='operador'||usuario.perfil==='gestor'){
+    if(usuario.perfil==='admin'){
+      destino='tela-admin';
+      document.getElementById('adm-nome-header').textContent=usuario.nome;
+      renderAdmin();
+    } else if(usuario.perfil==='operador'||usuario.perfil==='gestor'){
       destino='tela-producao';
       document.getElementById('op-nome-header').textContent=usuario.nome;
       document.getElementById('op-perfil-header').textContent=usuario.perfil==='gestor'?'Gestor · Acesso total':'Operador de Produção';
@@ -2524,15 +2631,27 @@ function baixarObs(itemId, obsIdx){
 
 function numOP(a){ return (a.op&&a.op.numero) ? a.op.numero : a.cliente.atd; }
 
-function abrirApontamento(atdNum){
+async function abrirApontamento(atdNum){
   const atd=S.atendimentos[atdNum];
   if(!atd)return;
   S.atdApontamento=atdNum;
   document.getElementById('apt-atd-tag').textContent=numOP(atd);
   document.getElementById('apt-cliente-sub').textContent=atd.cliente.razao;
   document.getElementById('apt-itens-lista').innerHTML=atd.itens.map(item=>renderPipelineItem(item,true)).join('');
-  renderDesenhos(atdNum,'apt-desenhos-grid','apt-desenho-badge','apt-desenho-count','apt');
   ir('tela-apontamento');
+  // Carregar desenhos do Supabase se ainda não carregados
+  if(!atd.desenhos || !atd.desenhos.length){
+    try {
+      const { data } = await supa.from('desenhos').select('*').eq('atd_id', atdNum);
+      if(data && data.length){
+        atd.desenhos = data.map(d=>({
+          dataUrl: d.data_url, nome: d.nome, tipo: d.tipo,
+          adicionadoPor: d.adicionado_por, hora: d.hora
+        }));
+      }
+    } catch(e){ console.warn('desenhos:', e); }
+  }
+  renderDesenhos(atdNum,'apt-desenhos-grid','apt-desenho-badge','apt-desenho-count','apt');
 }
 
 // mantida por compatibilidade — não usada diretamente
@@ -2614,14 +2733,193 @@ function countdownHTML(dataEfetivacao, prazoMaxDias){
 
 let _opAba = 'fila';
 
-function opAba(aba){
+async function opAba(aba){
   _opAba = aba;
   ['fila','processo','concluidos'].forEach(k=>{
     const tab = document.getElementById('op-tab-'+k);
     if(tab) tab.classList.toggle('ativo', k===aba);
   });
+  // Gestor recarrega do banco para ver ações do operador em tempo real
+  if(S.perfil==='gestor'){
+    try {
+      const { data } = await supa.from('atendimentos')
+        .select('id,status,op_numero,op_efetivado_por,op_efetivado_em,data_efetivacao,prazo_max_dias,etapas_producao(*),ocorrencias(*)')
+        .in('status',['pedido','producao','concluido']);
+      if(data) data.forEach(a=>{
+        if(S.atendimentos[a.id]){
+          S.atendimentos[a.id].status = a.status;
+          // Atualizar etapas e ocorrências nos itens
+          S.atendimentos[a.id].itens.forEach(item=>{
+            item.etapaAtual = _calcEtapaAtual(a.etapas_producao||[], item.id);
+            item.logEtapas  = _mapLogEtapas(a.etapas_producao||[], item.id);
+            item.ocorrencias = (a.ocorrencias||[])
+              .filter(o=>o.item_id===item.id)
+              .map(o=>({tipo:o.tipo,texto:o.texto,etapa:o.etapa,op:o.operador,hora:o.hora}));
+          });
+        }
+      });
+    } catch(e){ console.warn('sync gestor:', e); }
+  }
   renderFilaProducao();
 }
+
+// ══ ADMIN ══
+let _admEditUserId = null;
+let _admEditProdId = null;
+
+function admAba(aba){
+  ['usuarios','produtos'].forEach(a=>{
+    document.getElementById('adm-sec-'+a).style.display = a===aba ? 'block' : 'none';
+    const tab = document.getElementById('adm-tab-'+a);
+    if(tab){ tab.style.background = a===aba ? 'rgba(255,255,255,.15)' : 'none'; tab.style.color = a===aba ? '#fff' : 'rgba(255,255,255,.5)'; tab.style.fontWeight = a===aba ? '600' : '500'; }
+  });
+}
+
+async function renderAdmin(){
+  admAba('usuarios');
+  await admCarregarUsuarios();
+  await admCarregarProdutos();
+}
+
+async function admCarregarUsuarios(){
+  const lista = document.getElementById('adm-usuarios-lista');
+  if(!lista) return;
+  lista.innerHTML = '<div style="text-align:center;padding:20px;color:var(--texto3)">Carregando...</div>';
+  try {
+    const { data, error } = await supa.from('usuarios').select('*').order('nome');
+    if(error) throw error;
+    const PERFIL_LABEL = {vendedor:'Vendedor Ext.',interno:'Interno',operador:'Operador',gestor:'Gestor',admin:'Admin',pcp:'PCP'};
+    const PERFIL_COR   = {vendedor:'#1B3A6B',interno:'#0F6E56',operador:'#854F0B',gestor:'#5B2D8E',admin:'#B91C1C',pcp:'#0E7490'};
+    lista.innerHTML = (data||[]).map(u=>`
+      <div class="card" style="margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:36px;height:36px;border-radius:50%;background:${PERFIL_COR[u.perfil]||'#333'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${u.iniciais||'?'}</div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600;color:${u.ativo?'var(--texto)':'var(--texto3)'}">${u.nome}${u.ativo?'':' <span style="font-size:9px;color:var(--vermelho)">(desativado)</span>'}</div>
+            <div style="font-size:11px;color:var(--texto2)">${u.login} · <span style="font-size:10px;font-weight:500;padding:1px 6px;border-radius:4px;background:${PERFIL_COR[u.perfil]||'#333'}22;color:${PERFIL_COR[u.perfil]||'#333'}">${PERFIL_LABEL[u.perfil]||u.perfil}</span></div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button onclick="admEditarUsuario('${u.id}')" style="font-size:10px;padding:4px 8px;border-radius:6px;border:.5px solid var(--borda);background:var(--bg);cursor:pointer;font-family:var(--font);color:var(--texto2)">✏ Editar</button>
+            <button onclick="admToggleUsuario('${u.id}',${u.ativo})" style="font-size:10px;padding:4px 8px;border-radius:6px;border:.5px solid var(--borda);background:var(--bg);cursor:pointer;font-family:var(--font);color:${u.ativo?'var(--vermelho)':'var(--verde)'}">${u.ativo?'Desativar':'Ativar'}</button>
+          </div>
+        </div>
+      </div>`).join('') || '<div style="text-align:center;padding:32px;color:var(--texto3)">Nenhum usuario</div>';
+  } catch(e){ lista.innerHTML = `<div style="color:var(--vermelho);padding:12px">Erro: ${e.message}</div>`; }
+}
+
+async function admCarregarProdutos(){
+  const lista = document.getElementById('adm-produtos-lista');
+  if(!lista) return;
+  try {
+    const { data } = await supa.from('produtos').select('*').order('nome');
+    lista.innerHTML = (data||[]).map(p=>`
+      <div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:10px">
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600">${p.nome}</div>
+          <div style="font-size:11px;color:var(--texto2)">MX1: R$ ${p.preco_mx1} · MX2: R$ ${p.preco_mx2||'-'} · MX3: R$ ${p.preco_mx3||'-'} · ${p.prazo_dias}d</div>
+        </div>
+        <button onclick="admEditarProduto(${p.id})" style="font-size:10px;padding:4px 8px;border-radius:6px;border:.5px solid var(--borda);background:var(--bg);cursor:pointer;font-family:var(--font);color:var(--texto2)">✏</button>
+        <button onclick="admToggleProduto(${p.id},${p.ativo})" style="font-size:10px;padding:4px 8px;border-radius:6px;border:.5px solid var(--borda);background:var(--bg);cursor:pointer;font-family:var(--font);color:${p.ativo?'var(--vermelho)':'var(--verde)'}">${p.ativo?'Desativar':'Ativar'}</button>
+      </div>`).join('') || '<div style="text-align:center;padding:32px;color:var(--texto3)">Nenhum produto</div>';
+  } catch(e){}
+}
+
+function admNovoUsuario(){
+  _admEditUserId = null;
+  document.getElementById('adm-form-titulo').textContent='Novo usuario';
+  ['adm-u-login','adm-u-senha','adm-u-nome','adm-u-iniciais'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('adm-u-perfil').value='vendedor';
+  document.getElementById('adm-u-login').disabled = false;
+  document.getElementById('adm-u-erro').style.display='none';
+  document.getElementById('adm-form-usuario').style.display='block';
+}
+
+async function admEditarUsuario(id){
+  const { data } = await supa.from('usuarios').select('*').eq('id',id).single();
+  if(!data) return;
+  _admEditUserId = id;
+  document.getElementById('adm-form-titulo').textContent='Editar usuario';
+  document.getElementById('adm-u-login').value = data.login;
+  document.getElementById('adm-u-login').disabled = true;
+  document.getElementById('adm-u-senha').value = data.senha;
+  document.getElementById('adm-u-nome').value = data.nome;
+  document.getElementById('adm-u-iniciais').value = data.iniciais;
+  document.getElementById('adm-u-perfil').value = data.perfil;
+  document.getElementById('adm-u-erro').style.display='none';
+  document.getElementById('adm-form-usuario').style.display='block';
+}
+
+async function admSalvarUsuario(){
+  const login    = document.getElementById('adm-u-login').value.trim();
+  const senha    = document.getElementById('adm-u-senha').value.trim();
+  const nome     = document.getElementById('adm-u-nome').value.trim();
+  const iniciais = document.getElementById('adm-u-iniciais').value.trim().toUpperCase();
+  const perfil   = document.getElementById('adm-u-perfil').value;
+  const erro     = document.getElementById('adm-u-erro');
+  if(!login||!senha||!nome||!iniciais){ erro.textContent='Preencha todos os campos.'; erro.style.display='block'; return; }
+  if(senha.length < 4){ erro.textContent='Senha minima: 4 caracteres.'; erro.style.display='block'; return; }
+  erro.style.display='none';
+  try {
+    if(_admEditUserId){
+      await supa.from('usuarios').update({senha,nome,iniciais,perfil}).eq('id',_admEditUserId);
+    } else {
+      await supa.from('usuarios').insert({login,senha,nome,iniciais,perfil,ativo:true});
+    }
+    document.getElementById('adm-form-usuario').style.display='none';
+    await admCarregarUsuarios();
+  } catch(e){ erro.textContent='Erro: '+e.message; erro.style.display='block'; }
+}
+
+function admCancelarUsuario(){ document.getElementById('adm-form-usuario').style.display='none'; }
+async function admToggleUsuario(id, ativo){ await supa.from('usuarios').update({ativo:!ativo}).eq('id',id); await admCarregarUsuarios(); }
+
+function admNovoProduto(){
+  _admEditProdId = null;
+  document.getElementById('adm-prod-titulo').textContent='Novo produto';
+  ['adm-p-nome','adm-p-mx1','adm-p-mx2','adm-p-mx3'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('adm-p-prazo').value='10';
+  document.getElementById('adm-p-erro').style.display='none';
+  document.getElementById('adm-form-produto').style.display='block';
+}
+
+async function admEditarProduto(id){
+  const { data } = await supa.from('produtos').select('*').eq('id',id).single();
+  if(!data) return;
+  _admEditProdId = id;
+  document.getElementById('adm-prod-titulo').textContent='Editar produto';
+  document.getElementById('adm-p-nome').value = data.nome;
+  document.getElementById('adm-p-categoria').value = data.categoria||'comum';
+  document.getElementById('adm-p-mx1').value = data.preco_mx1;
+  document.getElementById('adm-p-mx2').value = data.preco_mx2||'';
+  document.getElementById('adm-p-mx3').value = data.preco_mx3||'';
+  document.getElementById('adm-p-prazo').value = data.prazo_dias||10;
+  document.getElementById('adm-p-erro').style.display='none';
+  document.getElementById('adm-form-produto').style.display='block';
+}
+
+async function admSalvarProduto(){
+  const nome      = document.getElementById('adm-p-nome').value.trim();
+  const categoria = document.getElementById('adm-p-categoria').value;
+  const mx1       = parseFloat(document.getElementById('adm-p-mx1').value)||0;
+  const mx2       = parseFloat(document.getElementById('adm-p-mx2').value)||null;
+  const mx3       = parseFloat(document.getElementById('adm-p-mx3').value)||null;
+  const prazo     = parseInt(document.getElementById('adm-p-prazo').value)||10;
+  const erro      = document.getElementById('adm-p-erro');
+  if(!nome||!mx1){ erro.textContent='Nome e preco MX1 sao obrigatorios.'; erro.style.display='block'; return; }
+  erro.style.display='none';
+  try {
+    if(_admEditProdId){
+      await supa.from('produtos').update({nome,categoria,preco_mx1:mx1,preco_mx2:mx2,preco_mx3:mx3,prazo_dias:prazo}).eq('id',_admEditProdId);
+    } else {
+      await supa.from('produtos').insert({nome,categoria,preco_mx1:mx1,preco_mx2:mx2,preco_mx3:mx3,prazo_dias:prazo,ativo:true});
+    }
+    document.getElementById('adm-form-produto').style.display='none';
+    await admCarregarProdutos();
+  } catch(e){ erro.textContent='Erro: '+e.message; erro.style.display='block'; }
+}
+
+function admCancelarProduto(){ document.getElementById('adm-form-produto').style.display='none'; }
+async function admToggleProduto(id, ativo){ await supa.from('produtos').update({ativo:!ativo}).eq('id',id); await admCarregarProdutos(); }
 
 function renderFilaProducao(){
   const todos = Object.values(S.atendimentos).filter(a=>['pedido','producao','concluido'].includes(a.status||''));
@@ -3298,37 +3596,83 @@ function verDesenhoTmp(idx){
 
 function abrirFollowup(){
   ir('tela-followup');
-  const isInterno = S.perfil==='interno';
+  const isInterno = S.perfil==='interno' || S.perfil==='admin';
   document.getElementById('fup-tabs-wrap').style.display   = isInterno ? '' : 'none';
   document.getElementById('fup-externos-wrap').style.display = 'none';
   document.getElementById('fup-subtitulo').textContent = isInterno
-    ? 'Orçamentos enviados · acompanhe e cobre follow-up'
+    ? 'Todos os atendimentos · acompanhe e converta'
     : 'Seus orçamentos enviados · acompanhe e feche negócios';
   if(isInterno){
-    // popular selector de externos
     const sel = document.getElementById('fup-vnd-sel');
     const externos = Object.values(USUARIOS).filter(u=>u.perfil==='vendedor');
     sel.innerHTML = '<option value="">— Selecione —</option>'
       + externos.map(u=>`<option value="${u.iniciais}">${u.nome}</option>`).join('');
-    fupAba('meus');
+    fupAba('todos'); // interno começa vendo todos
   } else {
     fupRenderLista(S.vendedor.iniciais);
   }
 }
 
-let _fupAba = 'meus';
+let _fupAba = 'todos';
 function fupAba(aba){
   _fupAba = aba;
-  document.getElementById('fup-tab-meus').classList.toggle('ativo', aba==='meus');
-  document.getElementById('fup-tab-externos').classList.toggle('ativo', aba==='externos');
+  ['todos','meus','externos'].forEach(k=>{
+    const t = document.getElementById('fup-tab-'+k);
+    if(t) t.classList.toggle('ativo', k===aba);
+  });
   const extWrap = document.getElementById('fup-externos-wrap');
   if(aba==='externos'){
     extWrap.style.display='';
     fupRenderExterno();
   } else {
     extWrap.style.display='none';
-    fupRenderLista(S.vendedor.iniciais);
+    if(aba==='todos') fupRenderTodos();
+    else fupRenderLista(S.vendedor.iniciais);
   }
+}
+
+function fupRenderTodos(){
+  // Todos os ATDs de todos os vendedores, mostrando nome do vendedor e contato
+  const STATUS_EXCLUIR = ['orcamento'];
+  const atds = Object.values(S.atendimentos)
+    .filter(a => !STATUS_EXCLUIR.includes(a.status))
+    .sort((a,b)=>{
+      const da=(a.dataEnvio||'').split('/').reverse().join('')+(a.horaEnvio||'');
+      const db=(b.dataEnvio||'').split('/').reverse().join('')+(b.horaEnvio||'');
+      return db.localeCompare(da);
+    });
+  if(!atds.length){
+    document.getElementById('fup-lista').innerHTML='<div style="text-align:center;padding:32px 0;color:var(--texto3);font-size:13px">Nenhum atendimento encontrado.</div>';
+    return;
+  }
+  // Reusar fupRenderLista mas passando todos com flag de vendedor
+  const el = document.getElementById('fup-lista');
+  el.innerHTML = atds.map(a=>{
+    const atdNum = a.cliente.atd;
+    const ini = atdNum.split('-')[1]||'';
+    const NOMES = {RAF:'Rafael Mendes',ANA:'Ana Costa',CAR:'Carlos Santos',MRB:'Marcio Ribeiro'};
+    const nomeVnd = NOMES[ini] || ini;
+    const st = a.status;
+    const sc = STATUS_COR[st]||STATUS_COR.enviado;
+    const tel = (a.cliente.tel||'').replace(/\D/g,'');
+    const wppLink = `https://wa.me/55${tel}?text=${encodeURIComponent('Olá '+a.cliente.contato+', tudo bem? Passando para verificar o orçamento '+atdNum+'. Podemos conversar?')}`;
+    return `<div class="fup-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:10px;font-family:var(--mono);color:var(--texto3)">${atdNum}</span>
+        <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:5px;background:${sc.bg};color:${sc.txt}">${STATUS_LABEL[st]||st}</span>
+      </div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:2px">${a.cliente.razao}</div>
+      <div style="font-size:12px;color:var(--texto2);margin-bottom:2px">${a.cliente.contato} · ${a.cliente.tel}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+        <span style="font-size:10px;color:var(--texto3)">Vendedor: <strong style="color:var(--texto2)">${nomeVnd}</strong></span>
+        <a href="${wppLink}" target="_blank"
+           style="display:flex;align-items:center;gap:4px;font-size:11px;color:#25D366;text-decoration:none;font-weight:500">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.533 5.858L.057 23.985l6.284-1.648A11.94 11.94 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-5.006-1.37l-.36-.214-3.727.977.995-3.635-.234-.374A9.818 9.818 0 1 1 12 21.818z"/></svg>
+          Contatar
+        </a>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function fupRenderExterno(){
