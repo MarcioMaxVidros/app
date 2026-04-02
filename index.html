@@ -1035,6 +1035,11 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
         <h1 id="op-nome-header">Produção</h1>
         <p id="op-perfil-header" style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px">Operador</p>
       </div>
+      <!-- Badge ocorrências — visível só para gestor -->
+      <div id="op-ocorr-badge" style="display:none;background:#C0392B;border-radius:8px;padding:6px 10px;text-align:center;margin-right:4px">
+        <div id="op-ocorr-count" style="font-size:18px;font-weight:700;color:#fff">0</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.7)">ocorr.</div>
+      </div>
       <div style="background:rgba(255,255,255,.15);border-radius:8px;padding:6px 12px;text-align:center">
         <div id="op-fila-count" style="font-size:20px;font-weight:700;color:#fff">0</div>
         <div style="font-size:9px;color:rgba(255,255,255,.6)">pedidos</div>
@@ -1876,9 +1881,10 @@ function getEtapasItem(item){
       else etapas=[...PIPELINE['Vidro Temperado']];
     }
   }
-  // Inserir Usinagem antes de Expedição se o item tiver usinagem
+  // Inserir Usinagem antes de Expedição se o item tiver usinagem ou desenho técnico
   const temUsinagem = item.usinagem && (
     item.usinagem.modelado ||
+    item.usinagem.desenho ||
     (item.usinagem.tipos && item.usinagem.tipos.length > 0)
   );
   if(temUsinagem && !etapas.includes('Usinagem')){
@@ -2643,6 +2649,13 @@ function renderFilaProducao(){
     });
     if(todasOcorr.length){
       ocorrSection.style.display='block';
+      // Badge no header para o gestor
+      if(S.perfil==='gestor'){
+        const badge = document.getElementById('op-ocorr-badge');
+        const cnt   = document.getElementById('op-ocorr-count');
+        if(badge){ badge.style.display='block'; }
+        if(cnt)  { cnt.textContent = todasOcorr.length; }
+      }
       ocorrLista.innerHTML=todasOcorr.map(o=>`
         <div style="background:#FCEBEB;border:.5px solid #F09595;border-radius:9px;padding:10px 12px;margin-bottom:6px;cursor:pointer"
              onclick="abrirApontamento('${o.atd}')">
@@ -2882,7 +2895,8 @@ async function carregarDadosBD(usuario){
         clientes(*),
         itens_atd(*),
         etapas_producao(*),
-        ocorrencias(*)
+        ocorrencias(*),
+        desenhos(*)
       `)
       .order('criado_em', {ascending: false})
       .limit(200);
@@ -2921,7 +2935,7 @@ async function carregarDadosBD(usuario){
           .filter(o => o.item_id === it.id)
           .map(o => ({tipo:o.tipo, texto:o.texto, etapa:o.etapa, op:o.operador, hora:o.hora})),
         pipeline: it.pipeline || null,
-        usinagem: { modelado: it.usinagem_modelado || false, tipos: it.usinagem_tipos || [] }
+        usinagem: { modelado: it.usinagem_modelado || false, tipos: it.usinagem_tipos || [], desenho: it.usinagem_desenho || false }
       }));
 
       S.atendimentos[a.id] = {
@@ -2946,7 +2960,13 @@ async function carregarDadosBD(usuario){
         prazoMaxDias: a.prazo_max_dias || null,
         op: a.op_numero ? { numero: a.op_numero, efetivadoPor: a.op_efetivado_por, efetivadoEm: a.op_efetivado_em } : null,
         recusa: a.recusa_motivo ? { motivo: a.recusa_motivo, recusadoPor: a.recusa_por, recusadoEm: a.recusa_em } : null,
-        desenhos: []
+        desenhos: (a.desenhos||[]).map(d=>({
+          dataUrl: d.data_url||null,
+          nome: d.nome,
+          tipo: d.tipo,
+          adicionadoPor: d.adicionado_por,
+          hora: d.hora
+        }))
       };
     });
 
@@ -3844,7 +3864,7 @@ function adicionarItem(){
     descricao:`${S.tipoSel} ${S.espSel} · ${S.corSel}${usinSuffix?' · '+usinSuffix:''}`,
     detalhe:`${q} pç${q>1?'s':''} · ${lR}×${aR}mm`,
     larg:l,alt:a,lR,aR,qty:q,area,total,warn,
-    usinagem:{tipos:usinParts, modelado:S.usinagem.modelado}
+    usinagem:{tipos:usinParts, modelado:S.usinagem.modelado, desenho: S._desenhosTmp.length > 0}
   });
 
   // Resetar modelado e campos de usinagem
@@ -3965,7 +3985,7 @@ function adicionarInsulado(){
     const idxExp = pipelineIns.indexOf('Expedição');
     if(idxExp>=0) pipelineIns.splice(idxExp,0,'Usinagem');
   }
-  S.itens.push({id:Date.now(),descricao,detalhe:`${q} pç${q>1?'s':''} · ${lR}×${aR}mm`,larg:l,alt:a,lR,aR,qty:q,area,total,warn:false,usinagem:{modelado:ins.modelado},pipeline:pipelineIns});
+  S.itens.push({id:Date.now(),descricao,detalhe:`${q} pç${q>1?'s':''} · ${lR}×${aR}mm`,larg:l,alt:a,lR,aR,qty:q,area,total,warn:false,usinagem:{modelado:ins.modelado, desenho: S._desenhosTmp.length > 0},pipeline:pipelineIns});
 
   // Reset completo pós-adição
   S.usinagem={furos:false,modelado:false};
@@ -4429,7 +4449,24 @@ async function enviarOrcamento(){
           warn: item.warn||false,
           usinagem_modelado: item.usinagem?.modelado||false,
           usinagem_tipos: item.usinagem?.tipos||[],
+          usinagem_desenho: item.usinagem?.desenho||false,
           ordem: idx
+        }))
+      );
+    }
+
+    // Gravar desenhos técnicos
+    const desenhosTodos = [...(atdExist.desenhos||[]), ...S._desenhosTmp];
+    if(desenhosTodos.length){
+      await supa.from('desenhos').delete().eq('atd_id', c.atd);
+      await supa.from('desenhos').insert(
+        desenhosTodos.map(d=>({
+          atd_id: c.atd,
+          nome: d.nome||'Desenho',
+          tipo: d.tipo||'image/jpeg',
+          data_url: d.dataUrl||null,
+          adicionado_por: d.adicionadoPor||S.vendedor.nome,
+          hora: d.hora||h
         }))
       );
     }
