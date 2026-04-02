@@ -2307,6 +2307,9 @@ async function fazerLogin(){
     carregarTiposUsinagem();
     renderUsinagemOrcamento();
 
+    // Carregar dados reais do banco em background
+    carregarDadosBD(usuario);
+
   } catch(e) {
     console.error('Erro login:', e);
     alert('Erro de conexão. Verifique a internet.');
@@ -2867,6 +2870,121 @@ function resetUsinagemOrcamento(){
     const p=document.getElementById('usin-preco-'+t.id); if(p) p.value='';
   });
   const sub=document.getElementById('orc-usinagem-subtotal'); if(sub) sub.style.display='none';
+}
+
+async function carregarDadosBD(usuario){
+  try {
+    // 1. Buscar atendimentos conforme perfil
+    let query = supa
+      .from('atendimentos')
+      .select(`
+        *,
+        clientes(*),
+        itens_atd(*),
+        etapas_producao(*),
+        ocorrencias(*)
+      `)
+      .order('criado_em', {ascending: false})
+      .limit(200);
+
+    // Vendedor externo vê só os seus
+    if(usuario.perfil === 'vendedor'){
+      query = query.eq('usuario_id', usuario.id);
+    }
+    // Operador/gestor/interno veem apenas os relevantes
+    if(usuario.perfil === 'operador'){
+      query = query.in('status', ['pedido','producao','concluido']);
+    }
+    if(usuario.perfil === 'interno'){
+      query = query.in('status', ['enviado','revisado','pedido','producao','concluido','recusado']);
+    }
+
+    const { data: atds, error } = await query;
+    if(error) throw error;
+    if(!atds || !atds.length) return;
+
+    // 2. Mapear para o formato S.atendimentos
+    atds.forEach(a => {
+      const clienteDB = a.clientes || {};
+      const itens = (a.itens_atd || []).sort((x,y) => x.ordem - y.ordem).map(it => ({
+        id: it.id,
+        descricao: it.descricao,
+        detalhe: it.detalhe,
+        larg: it.larg, alt: it.alt,
+        lR: it.l_r, aR: it.a_r,
+        qty: it.qty,
+        area: it.area,
+        total: it.total,
+        warn: it.warn || false,
+        etapaAtual: _calcEtapaAtual(a.etapas_producao || [], it.id),
+        logEtapas: _mapLogEtapas(a.etapas_producao || [], it.id),
+        ocorrencias: (a.ocorrencias || [])
+          .filter(o => o.item_id === it.id)
+          .map(o => ({tipo:o.tipo, texto:o.texto, etapa:o.etapa, op:o.operador, hora:o.hora})),
+        pipeline: it.pipeline || null,
+        usinagem: { modelado: it.usinagem_modelado || false, tipos: it.usinagem_tipos || [] }
+      }));
+
+      S.atendimentos[a.id] = {
+        cliente: {
+          cnpj: clienteDB.cnpj || '',
+          razao: clienteDB.razao || '',
+          contato: clienteDB.contato || '',
+          tel: clienteDB.tel || '',
+          email: clienteDB.email || '',
+          segmento: clienteDB.segmento || '',
+          atd: a.id,
+          hora: a.criado_em ? new Date(a.criado_em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : ''
+        },
+        itens,
+        status: a.status,
+        tabela: a.tabela || 'MX1',
+        totalEnviado: a.total_enviado || 0,
+        horaEnvio: a.hora_envio || null,
+        dataEnvio: a.data_envio ? new Date(a.data_envio).toLocaleDateString('pt-BR') : null,
+        revisoes: a.revisoes || 0,
+        dataEfetivacao: a.data_efetivacao ? new Date(a.data_efetivacao).toLocaleDateString('pt-BR') : null,
+        prazoMaxDias: a.prazo_max_dias || null,
+        op: a.op_numero ? { numero: a.op_numero, efetivadoPor: a.op_efetivado_por, efetivadoEm: a.op_efetivado_em } : null,
+        recusa: a.recusa_motivo ? { motivo: a.recusa_motivo, recusadoPor: a.recusa_por, recusadoEm: a.recusa_em } : null,
+        desenhos: []
+      };
+    });
+
+    // 3. Atualizar UI com dados reais
+    if(usuario.perfil === 'interno'){
+      atualizarBadgeInterno();
+      if(document.getElementById('int-fila-lista')) renderFilaInterno();
+    }
+    if(usuario.perfil === 'operador' || usuario.perfil === 'gestor'){
+      renderFilaProducao();
+    }
+    if(usuario.perfil === 'vendedor'){
+      atualizarResumo();
+      if(document.getElementById('fup-lista')) renderFollowUp();
+    }
+
+    console.log(`✅ BD carregado: ${atds.length} atendimentos`);
+
+  } catch(e){
+    console.error('❌ carregarDadosBD:', e.message);
+  }
+}
+
+// Helpers para mapear etapas do banco
+function _calcEtapaAtual(etapas, itemId){
+  const etapasItem = etapas.filter(e => e.item_id === itemId);
+  return etapasItem.length;
+}
+
+function _mapLogEtapas(etapas, itemId){
+  const log = {};
+  etapas.filter(e => e.item_id === itemId)
+    .sort((a,b) => a.etapa_idx - b.etapa_idx)
+    .forEach(e => {
+      log[e.etapa_idx] = { op: e.operador, hora: e.hora, etapa: e.etapa };
+    });
+  return log;
 }
 
 function carregarProdutosEspeciais(){
