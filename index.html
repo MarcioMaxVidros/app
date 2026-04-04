@@ -177,6 +177,15 @@ body{height:100%;height:-webkit-fill-available;overflow:hidden;font-family:var(-
 .fup-tabs{display:flex;gap:0;margin-bottom:12px;border-radius:var(--r);overflow:hidden;border:.5px solid var(--borda)}
 .fup-tab{flex:1;padding:8px;font-size:12px;font-weight:500;color:var(--texto2);background:var(--card);border:none;cursor:pointer;font-family:var(--font)}
 .fup-tab.ativo{background:var(--azul);color:#fff;font-weight:600}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.aberto{display:flex}
+.modal-box{background:var(--card);border-radius:var(--r);padding:20px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.modal-titulo{font-size:16px;font-weight:600}
+.modal-fechar{background:none;border:none;font-size:22px;cursor:pointer;color:var(--texto3);line-height:1}
+.pcp-plano-grid{border:1.5px solid var(--azul);border-radius:4px;background:#E2EBF8;position:relative;overflow:hidden;}
+.pcp-plano-peca{position:absolute;border:1.5px solid var(--azul);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:var(--azul);text-align:center;overflow:hidden;padding:2px;}
+.pcp-etiq-wrap{width:283px;height:227px;border:1.5px solid var(--azul);border-radius:6px;padding:8px;background:#fff;position:relative;flex-shrink:0}
 .fup-selector{width:100%;padding:9px 12px;border-radius:var(--r);border:.5px solid var(--borda);background:var(--card);color:var(--texto);font-family:var(--font);font-size:13px;margin-bottom:12px}
 .fup-vnd-label{font-size:11px;color:var(--texto3);margin-bottom:6px}
 .orcamento-item.warn{border-color:#EF9F27}
@@ -250,6 +259,18 @@ body{height:100%;height:-webkit-fill-available;overflow:hidden;font-family:var(-
 .btn-login{width:100%;height:52px;border-radius:14px;border:none;background:rgba(255,255,255,.93);color:#0a1a30;font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;letter-spacing:.1px}
 .btn-login:active{opacity:.85}
 .login-hint{font-size:9px;color:rgba(255,255,255,.15);text-align:center;margin-top:14px}
+.perfil-list-btn{width:100%;height:40px;border-radius:10px;border:.8px solid rgba(100,160,255,.15);background:rgba(255,255,255,.04);color:rgba(255,255,255,.45);font-family:var(--font);font-size:13px;font-weight:400;cursor:pointer;text-align:left;padding:0 14px;display:flex;align-items:center;gap:10px;transition:all .15s;}
+.perfil-list-btn.perfil-sel{background:rgba(100,160,255,.15);border-color:rgba(100,160,255,.45);color:#fff;font-weight:500;}
+.perfil-list-btn:before{content:'';width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.2);flex-shrink:0;}
+.perfil-list-btn.perfil-sel:before{background:#4A9EFF;}
+.perfil-drop-item{width:100%;height:44px;border:none;background:none;color:rgba(255,255,255,.6);font-family:var(--font);font-size:13px;cursor:pointer;text-align:left;padding:0 16px;display:flex;align-items:center;gap:10px;border-bottom:.5px solid rgba(255,255,255,.06);transition:background .12s;}
+.perfil-drop-item:last-child{border-bottom:none;}
+.perfil-drop-item:hover{background:rgba(100,160,255,.12);color:#fff;}
+.perfil-drop-item.perfil-drop-sel{color:#fff;font-weight:500;background:rgba(100,160,255,.1);}
+.perfil-drop-item:before{content:'';width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.15);flex-shrink:0;}
+.perfil-drop-item.perfil-drop-sel:before{background:#4A9EFF;}
+.login-atalho-btn{flex:1;min-width:70px;height:30px;border-radius:8px;border:.5px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:rgba(255,255,255,.5);font-family:var(--font);font-size:11px;cursor:pointer;}
+.login-atalho-btn:hover{background:rgba(255,255,255,.12);color:#fff;}
 
 /* ══ MODO DESKTOP ══ */
 body.desktop{background:#1a2540;}
@@ -363,6 +384,7 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -539,34 +561,50 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
     <div class="login-welcome">Bem-vindo</div>
     <div class="login-welcome-sub">Entre com suas credenciais</div>
     <div class="login-card">
-      <!-- Seletor de perfil — oculto quando dispositivo já foi configurado -->
-      <div id="login-perfil-section">
-        <label>Perfil de acesso</label>
-        <div style="display:flex;gap:6px;margin-bottom:6px">
-          <button id="perfil-btn-vendedor" onclick="selecionarPerfil('vendedor')" style="flex:1;height:36px;border-radius:9px;border:.8px solid rgba(100,160,255,.45);background:rgba(100,160,255,.15);color:#fff;font-family:var(--font);font-size:11px;font-weight:500;cursor:pointer;">Vendedor</button>
-          <button id="perfil-btn-interno" onclick="selecionarPerfil('interno')" style="flex:1;height:36px;border-radius:9px;border:.8px solid rgba(100,160,255,.15);background:rgba(255,255,255,.04);color:rgba(255,255,255,.45);font-family:var(--font);font-size:11px;cursor:pointer;">Interno</button>
-          <button id="perfil-btn-operador" onclick="selecionarPerfil('operador')" style="flex:1;height:36px;border-radius:9px;border:.8px solid rgba(100,160,255,.15);background:rgba(255,255,255,.04);color:rgba(255,255,255,.45);font-family:var(--font);font-size:11px;cursor:pointer;">Operador</button>
-          <button id="perfil-btn-gestor" onclick="selecionarPerfil('gestor')" style="flex:1;height:36px;border-radius:9px;border:.8px solid rgba(100,160,255,.15);background:rgba(255,255,255,.04);color:rgba(255,255,255,.45);font-family:var(--font);font-size:11px;cursor:pointer;">Gestor</button>
-        </div>
-      </div>
       <!-- Badge de perfil fixo — visível quando dispositivo configurado -->
       <div id="login-perfil-fixo" style="display:none;margin-bottom:10px">
         <label>Dispositivo configurado para</label>
         <div id="login-perfil-fixo-label" style="font-size:13px;font-weight:600;color:#fff;padding:8px 0 4px"></div>
       </div>
+      <!-- Seletor de perfil dropdown -->
+      <div id="login-perfil-section" style="margin-bottom:12px">
+        <label>Perfil de acesso</label>
+        <div style="position:relative">
+          <button id="perfil-dropdown-btn" onclick="togglePerfilDropdown()" style="width:100%;height:48px;border-radius:12px;border:.8px solid rgba(100,160,255,.2);background:rgba(255,255,255,.05);color:#fff;font-family:var(--font);font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:0 14px;text-align:left">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span id="perfil-dot" style="width:8px;height:8px;border-radius:50%;background:#4A9EFF;flex-shrink:0"></span>
+              <span id="perfil-label-sel">Vendedor Externo</span>
+            </div>
+            <svg id="perfil-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div id="perfil-dropdown-lista" style="display:none;position:absolute;top:calc(100% + 6px);left:0;right:0;background:#0e1e38;border:.8px solid rgba(100,160,255,.25);border-radius:12px;overflow:hidden;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,.4)">
+            <button onclick="selecionarPerfil('vendedor')"  class="perfil-drop-item perfil-drop-sel">Vendedor Externo</button>
+            <button onclick="selecionarPerfil('interno')"   class="perfil-drop-item">Vendedor Interno</button>
+            <button onclick="selecionarPerfil('pcp')"       class="perfil-drop-item">PCP</button>
+            <button onclick="selecionarPerfil('operador')"  class="perfil-drop-item">Operador de Producao</button>
+            <button onclick="selecionarPerfil('gestor')"    class="perfil-drop-item">Gestor de Fabrica</button>
+            <button onclick="selecionarPerfil('admin')"     class="perfil-drop-item">Admin</button>
+          </div>
+        </div>
+      </div>
       <label>Usuário</label>
       <div class="login-field">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-        <input id="login-user" type="text" value="rafael.mendes" autocomplete="username">
+        <input id="login-user" type="text" value="rafael.mendes" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
       </div>
       <label>Senha</label>
       <div class="login-field">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="1.6" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-        <input id="login-pass" type="password" value="123456" autocomplete="current-password">
+        <input id="login-pass" type="password" value="123456" autocomplete="current-password" onkeydown="if(event.key==='Enter')fazerLogin()" style="flex:1">
+        <button onclick="toggleSenha()" id="btn-toggle-senha" style="background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;flex-shrink:0">
+          <svg id="olho-fechado" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.6" stroke-linecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          <svg id="olho-aberto" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.6" stroke-linecap="round" style="display:none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
       </div>
+      <div id="login-erro-msg" style="font-size:11px;color:#F87171;margin:-4px 0 8px;display:none">Usuario ou senha incorretos.</div>
       <button class="btn-login" onclick="fazerLogin()">Entrar</button>
     </div>
-    <p class="login-hint">Beta · dados simulados · v1.1</p>
+    <p class="login-hint">Max Vidros · v2.7</p>
   </div>
 </div>
 
@@ -1810,6 +1848,173 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
   </div>
 </div>
 
+<!-- ══ TELAS PCP ══ -->
+
+<!-- PCP ESTOQUE M.P. -->
+<div class="tela" id="tela-pcp-estoque">
+  <div class="topbar">
+    <div class="topbar-row">
+      <div style="flex:1"><h1>Estoque de M.P.</h1><p>Chapas para processamento</p></div>
+      <button onclick="pcpAbrirEntrada()" style="background:rgba(255,255,255,.15);border:none;border-radius:8px;padding:6px 10px;color:#fff;font-family:var(--font);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Entrada
+      </button>
+      <button onclick="pcpAbrirCadastroMP()" style="background:rgba(255,255,255,.08);border:none;border-radius:8px;padding:6px 10px;color:rgba(255,255,255,.7);font-family:var(--font);font-size:11px;cursor:pointer;margin-left:4px">Cadastrar</button>
+      <button onclick="sair()" style="background:rgba(255,255,255,.08);border:none;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-left:4px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <select id="pcp-filtro-tipo" onchange="pcpRenderEstoque()" style="flex:1;height:32px;border-radius:8px;border:.5px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-family:var(--font);font-size:12px;padding:0 10px;outline:none">
+        <option value="">Todos os tipos</option><option>Vidro Comum</option><option>Vidro Laminado</option>
+      </select>
+      <select id="pcp-filtro-esp" onchange="pcpRenderEstoque()" style="flex:1;height:32px;border-radius:8px;border:.5px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-family:var(--font);font-size:12px;padding:0 10px;outline:none">
+        <option value="">Todas esp.</option>
+      </select>
+    </div>
+  </div>
+  <div class="body">
+    <div id="pcp-estoque-resumo" style="display:flex;gap:8px;margin-bottom:14px"></div>
+    <div id="pcp-estoque-lista"></div>
+  </div>
+</div>
+
+<!-- PCP OPs -->
+<div class="tela" id="tela-pcp-ops">
+  <div class="topbar">
+    <div class="topbar-row">
+      <button class="btn-voltar" onclick="ir('tela-pcp-estoque')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
+      <div><h1>OPs Aguardando</h1><p>Sequenciamento e plano de corte</p></div>
+    </div>
+  </div>
+  <div class="body">
+    <div style="display:flex;background:var(--card);border-radius:var(--r);padding:3px;margin-bottom:12px;border:.5px solid var(--borda)">
+      <button class="fup-tab ativo" id="pcp-tab-ag" onclick="pcpOpsAba('pedido')">Aguardando</button>
+      <button class="fup-tab" id="pcp-tab-pr" onclick="pcpOpsAba('producao')">Em Producao</button>
+      <button class="fup-tab" id="pcp-tab-co" onclick="pcpOpsAba('concluido')">Concluidos</button>
+    </div>
+    <div id="pcp-ops-lista"></div>
+  </div>
+</div>
+
+<!-- PCP OPTMAX -->
+<div class="tela" id="tela-pcp-optmax">
+  <div class="topbar">
+    <div class="topbar-row">
+      <button class="btn-voltar" onclick="ir('tela-pcp-ops')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
+      <div style="flex:1"><h1>OptMAX PCP</h1><p>Plano de corte otimizado</p></div>
+      <button onclick="pcpAbrirPP()" style="background:rgba(255,255,255,.1);border:none;border-radius:8px;padding:6px 10px;color:rgba(255,255,255,.8);font-family:var(--font);font-size:11px;cursor:pointer">Pecas padrao</button>
+    </div>
+  </div>
+  <div class="body">
+    <div class="card">
+      <div class="card-titulo">Selecionar OP para plano de corte</div>
+      <div class="campo" style="margin-bottom:0"><select id="pcp-optmax-sel" onchange="pcpOptmaxCarregar()"><option value="">— Selecione —</option></select></div>
+    </div>
+    <div id="pcp-optmax-body" style="display:none">
+      <div id="pcp-optmax-grupos"></div>
+      <div id="pcp-optmax-plano" style="display:none"><p class="sec-label">Plano de corte</p><div id="pcp-optmax-plano-wrap"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- PCP ETIQUETAS -->
+<div class="tela" id="tela-pcp-etiquetas">
+  <div class="topbar">
+    <div class="topbar-row">
+      <button class="btn-voltar" onclick="ir('tela-pcp-ops')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
+      <div><h1>Etiquetas</h1><p>100x80mm · QR Code · PDF</p></div>
+    </div>
+  </div>
+  <div class="body">
+    <div class="card">
+      <div class="card-titulo">Selecionar OP</div>
+      <div class="campo" style="margin-bottom:0"><select id="pcp-etiq-sel" onchange="pcpEtiqCarregar()"><option value="">— Selecione —</option></select></div>
+    </div>
+    <div id="pcp-etiq-body" style="display:none">
+      <div id="pcp-etiq-itens"></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="btn btn-secundario btn-sm" onclick="pcpEtiqPreview()">Preview</button>
+        <button class="btn btn-primario btn-sm" style="flex:1" onclick="pcpEtiqImprimir()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Imprimir PDF
+        </button>
+      </div>
+      <div id="pcp-etiq-preview-wrap" style="display:none;margin-top:14px">
+        <p class="sec-label">Preview</p>
+        <div id="pcp-etiq-preview-grid" style="display:flex;flex-wrap:wrap;gap:10px;overflow-x:auto"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAIS PCP -->
+<div class="modal-overlay" id="pcp-modal-entrada">
+  <div class="modal-box">
+    <div class="modal-header"><div class="modal-titulo">Entrada de M.P.</div><button class="modal-fechar" onclick="fecharModal('pcp-modal-entrada')">×</button></div>
+    <div class="campo"><label>Tipo *</label><select id="pcp-ent-tipo" onchange="pcpEntFiltrarEsp()"><option value="">Selecione</option><option>Vidro Comum</option><option>Vidro Laminado</option></select></div>
+    <div class="campo"><label>Espessura *</label><select id="pcp-ent-esp"><option value="">Selecione o tipo</option></select></div>
+    <div class="campo"><label>Cor *</label><select id="pcp-ent-cor" onchange="pcpEntRefletivo()"><option value="">Selecione</option><option>Incolor</option><option>Verde</option><option>Fume</option><option>Bronze</option><option>Refletivo</option></select></div>
+    <div id="pcp-ent-ref-wrap" style="display:none">
+      <div class="campo"><label>Marca *</label><input id="pcp-ent-ref-marca" type="text" placeholder="ex: Saint-Gobain"></div>
+      <div class="campo"><label>Modelo *</label><input id="pcp-ent-ref-modelo" type="text" placeholder="ex: Cool-Lite SKN 176"></div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="campo" style="flex:1"><label>Largura (mm) *</label><input id="pcp-ent-larg" type="number" placeholder="2000"></div>
+      <div class="campo" style="flex:1"><label>Altura (mm) *</label><input id="pcp-ent-alt" type="number" placeholder="3000"></div>
+    </div>
+    <div class="campo"><label>Qtd chapas *</label><input id="pcp-ent-qty" type="number" min="1" placeholder="10"></div>
+    <div class="campo"><label>Cod. lote / NF</label><input id="pcp-ent-lote" type="text" placeholder="NF-12345"></div>
+    <div class="campo"><label>Fornecedor</label><input id="pcp-ent-forn" type="text"></div>
+    <div class="campo" style="margin-bottom:0"><label>Obs.</label><input id="pcp-ent-obs" type="text"></div>
+    <div id="pcp-ent-erro" class="alerta alerta-erro" style="display:none;margin-top:10px"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-secundario btn-sm" style="flex:1" onclick="fecharModal('pcp-modal-entrada')">Cancelar</button>
+      <button class="btn btn-primario btn-sm" style="flex:2" onclick="pcpSalvarEntrada()">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="pcp-modal-cad-mp">
+  <div class="modal-box">
+    <div class="modal-header"><div class="modal-titulo">Cadastrar Chapa</div><button class="modal-fechar" onclick="fecharModal('pcp-modal-cad-mp')">×</button></div>
+    <div class="campo"><label>Tipo *</label><select id="pcp-cad-tipo"><option value="">Selecione</option><option>Vidro Comum</option><option>Vidro Laminado</option></select></div>
+    <div class="campo"><label>Espessura *</label><input id="pcp-cad-esp" type="text" placeholder="ex: 6mm"></div>
+    <div class="campo"><label>Cor *</label><select id="pcp-cad-cor" onchange="pcpCadRefletivo()"><option value="">Selecione</option><option>Incolor</option><option>Verde</option><option>Fume</option><option>Bronze</option><option>Refletivo</option></select></div>
+    <div id="pcp-cad-ref-wrap" style="display:none">
+      <div class="campo"><label>Marca *</label><input id="pcp-cad-ref-marca" type="text"></div>
+      <div class="campo"><label>Modelo *</label><input id="pcp-cad-ref-modelo" type="text"></div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="campo" style="flex:1"><label>Largura *</label><input id="pcp-cad-larg" type="number"></div>
+      <div class="campo" style="flex:1"><label>Altura *</label><input id="pcp-cad-alt" type="number"></div>
+    </div>
+    <div class="campo" style="margin-bottom:0"><label>Descricao</label><input id="pcp-cad-desc" type="text"></div>
+    <div id="pcp-cad-erro" class="alerta alerta-erro" style="display:none;margin-top:10px"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-secundario btn-sm" style="flex:1" onclick="fecharModal('pcp-modal-cad-mp')">Cancelar</button>
+      <button class="btn btn-primario btn-sm" style="flex:2" onclick="pcpSalvarCadastroMP()">Cadastrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="pcp-modal-pp">
+  <div class="modal-box">
+    <div class="modal-header"><div class="modal-titulo">Pecas Padrao de Aproveitamento</div><button class="modal-fechar" onclick="fecharModal('pcp-modal-pp')">×</button></div>
+    <div id="pcp-pp-lista-modal"></div>
+    <div class="sep"></div>
+    <p class="sec-label" style="margin-top:0">Nova peca padrao</p>
+    <div class="campo"><label>Descricao *</label><input id="pcp-pp-desc" type="text" placeholder="ex: Prateleira 300x200"></div>
+    <div class="campo"><label>Tipo *</label><select id="pcp-pp-tipo"><option value="">Selecione</option><option>Vidro Comum</option><option>Vidro Laminado</option></select></div>
+    <div class="campo"><label>Espessura *</label><input id="pcp-pp-esp" type="text" placeholder="6mm"></div>
+    <div class="campo"><label>Cor *</label><select id="pcp-pp-cor"><option value="">Selecione</option><option>Incolor</option><option>Verde</option><option>Fume</option><option>Bronze</option></select></div>
+    <div style="display:flex;gap:10px">
+      <div class="campo" style="flex:1"><label>Larg (mm) *</label><input id="pcp-pp-larg" type="number"></div>
+      <div class="campo" style="flex:1"><label>Alt (mm) *</label><input id="pcp-pp-alt" type="number"></div>
+    </div>
+    <button class="btn btn-primario btn-sm" style="width:100%;height:42px" onclick="pcpSalvarPP()">Cadastrar peca</button>
+  </div>
+</div>
+
 </div><!-- /desktop-content -->
 </div><!-- /app -->
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
@@ -2269,6 +2474,21 @@ const NAV_POR_PERFIL = {
     {id:'tela-producao',  label:'Produção',     icon:'<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3l-4 4-4-4"/>'},
     {id:'tela-apontamento',label:'Apontamento', icon:'<polyline points="20 6 9 17 4 12"/>'},
   ],
+  pcp: [
+    {id:'tela-pcp-estoque',  label:'Estoque M.P.',  icon:'<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>'},
+    {id:'tela-pcp-ops',      label:'OPs',           icon:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h6M17 14v6"/>',badge:'pcp-badge-nav'},
+    {id:'tela-pcp-optmax',   label:'OptMAX PCP',    icon:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>'},
+    {id:'tela-pcp-etiquetas',label:'Etiquetas',     icon:'<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>'},
+  ],
+  admin: [
+    {id:'tela-pcp-estoque',  label:'Estoque M.P.',  icon:'<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>'},
+    {id:'tela-pcp-ops',      label:'OPs',           icon:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h6M17 14v6"/>',badge:'pcp-badge-nav'},
+    {id:'tela-pcp-optmax',   label:'OptMAX PCP',    icon:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>'},
+    {id:'tela-pcp-etiquetas',label:'Etiquetas',     icon:'<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>'},
+    {sep:true},
+    {id:'tela-admin',        label:'Admin',         icon:'<circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/>'},
+    {id:'tela-followup',     label:'Follow-up',     icon:'<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.64 3.42 2 2 0 0 1 3.62 1.27h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 6 6l1.09-1.09a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16z"/>'},
+  ],
 };
 
 function ativarModoDesktop(){
@@ -2292,7 +2512,7 @@ function renderSidebar(){
   const nome = document.getElementById('dsk-footer-nome');
   const perfil = document.getElementById('dsk-footer-perfil');
   if(nome) nome.textContent = S.vendedor.nome;
-  if(perfil) perfil.textContent = ({vendedor:'Vendedor Externo',interno:'Vendedor Interno',gestor:'Gestor',operador:'Operador de Produção'})[S.perfil]||S.perfil;
+  if(perfil) perfil.textContent = ({vendedor:'Vendedor Externo',interno:'Vendedor Interno',gestor:'Gestor de Fabrica',operador:'Operador de Producao',pcp:'PCP',admin:'Administrador'})[S.perfil]||S.perfil;
 }
 
 function irDesktop(id){
@@ -2313,57 +2533,90 @@ function irParaLogin(){
   if(login){ login.classList.add('ativa'); login.style.webkitTransform='translate3d(0,0,0)'; login.style.transform='translate3d(0,0,0)'; }
   setTimeout(()=>{ if(pin){ pin.style.webkitTransform=''; pin.style.transform=''; } },300);
 
-  // Se dispositivo configurado: ocultar seletor, mostrar badge de perfil fixo
+  // Versão de teste — lista de perfis sempre visível
   try {
-    const perfilSalvo = localStorage.getItem('mx_perfil_padrao');
-    const usuarioSalvo = localStorage.getItem('mx_usuario_padrao');
-    const secSel   = document.getElementById('login-perfil-section');
-    const secFixo  = document.getElementById('login-perfil-fixo');
-    const lblFixo  = document.getElementById('login-perfil-fixo-label');
-    const LABELS   = {vendedor:'Vendedor Externo',interno:'Vendedor Interno',operador:'Operador de Produção',gestor:'Gestor'};
-    if(perfilSalvo && usuarioSalvo){
-      if(secSel)  secSel.style.display  = 'none';
-      if(secFixo) secFixo.style.display = 'block';
-      if(lblFixo) lblFixo.textContent   = LABELS[perfilSalvo] || perfilSalvo;
-      selecionarPerfil(perfilSalvo);
-    } else {
-      if(secSel)  secSel.style.display  = 'block';
-      if(secFixo) secFixo.style.display = 'none';
-    }
+    const secSel  = document.getElementById('login-perfil-section');
+    const secFixo = document.getElementById('login-perfil-fixo');
+    if(secSel)  secSel.style.display  = 'block';
+    if(secFixo) secFixo.style.display = 'none';
   } catch(e){}
 }
 
+function togglePerfilDropdown(){
+  const lista = document.getElementById('perfil-dropdown-lista');
+  const chevron = document.getElementById('perfil-chevron');
+  const aberto = lista.style.display === 'none';
+  lista.style.display = aberto ? 'block' : 'none';
+  if(chevron) chevron.style.transform = aberto ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+
 function selecionarPerfil(p){
-  _perfilSel=p;
-  ['vendedor','interno','operador','gestor'].forEach(k=>{
-    const btn=document.getElementById('perfil-btn-'+k);
-    if(!btn)return;
-    if(k===p){
-      btn.style.background='rgba(100,160,255,.15)';
-      btn.style.borderColor='rgba(100,160,255,.45)';
-      btn.style.color='#fff';
-      btn.style.fontWeight='500';
-    }else{
-      btn.style.background='rgba(255,255,255,.04)';
-      btn.style.borderColor='rgba(100,160,255,.15)';
-      btn.style.color='rgba(255,255,255,.45)';
-      btn.style.fontWeight='400';
-    }
-  });
-  const inpU=document.getElementById('login-user');
-  const inpP=document.getElementById('login-pass');
+  _perfilSel = p;
+  // Fechar dropdown
+  const lista = document.getElementById('perfil-dropdown-lista');
+  const chevron = document.getElementById('perfil-chevron');
+  if(lista) lista.style.display = 'none';
+  if(chevron) chevron.style.transform = 'rotate(0deg)';
+  // Atualizar label do botão
+  const LABELS = {vendedor:'Vendedor Externo',interno:'Vendedor Interno',pcp:'PCP',operador:'Operador de Producao',gestor:'Gestor de Fabrica',admin:'Admin'};
+  const lbl = document.getElementById('perfil-label-sel');
+  if(lbl) lbl.textContent = LABELS[p] || p;
+  // Marcar item selecionado
+  document.querySelectorAll('.perfil-drop-item').forEach(b => b.classList.remove('perfil-drop-sel'));
+  const itens = document.querySelectorAll('.perfil-drop-item');
+  const idx = ['vendedor','interno','pcp','operador','gestor','admin'].indexOf(p);
+  if(itens[idx]) itens[idx].classList.add('perfil-drop-sel');
+  // Preencher credenciais
+  const inpU = document.getElementById('login-user');
+  const inpP = document.getElementById('login-pass');
   if(p==='operador'){inpU.value='joao.silva';inpP.value='op1234';}
   else if(p==='gestor'){inpU.value='ana.costa';inpP.value='123456';}
   else if(p==='interno'){inpU.value='carlos.interno';inpP.value='123456';}
+  else if(p==='pcp'){inpU.value='pcp.maxvidros';inpP.value='pcp1234';}
+  else if(p==='admin'){inpU.value='marcio.ribeiro';inpP.value='1981';}
   else{inpU.value='rafael.mendes';inpP.value='123456';}
+}
+
+function toggleSenha(){
+  const inp=document.getElementById('login-pass');
+  const aberto=document.getElementById('olho-aberto');
+  const fechado=document.getElementById('olho-fechado');
+  if(inp.type==='password'){
+    inp.type='text';
+    aberto.style.display='block';
+    fechado.style.display='none';
+  } else {
+    inp.type='password';
+    aberto.style.display='none';
+    fechado.style.display='block';
+  }
+}
+
+// Atalhos de teste — ativados com 5 toques no hint
+let _loginTaps=0,_loginTapTimer=null;
+function loginTapHint(){
+  _loginTaps++;
+  clearTimeout(_loginTapTimer);
+  _loginTapTimer=setTimeout(()=>_loginTaps=0,2000);
+  if(_loginTaps>=5){
+    _loginTaps=0;
+    const el=document.getElementById('login-atalhos');
+    if(el) el.style.display=el.style.display==='none'?'block':'none';
+  }
+}
+function loginRapido(u,p){
+  document.getElementById('login-user').value=u;
+  document.getElementById('login-pass').value=p;
+  fazerLogin();
 }
 
 async function fazerLogin(){
   const u = document.getElementById('login-user').value.trim();
   const p = document.getElementById('login-pass').value;
-  if(!u || !p){ alert('Preencha usuário e senha.'); return; }
+  const erroEl = document.getElementById('login-erro-msg');
+  if(erroEl) erroEl.style.display='none';
+  if(!u || !p){ if(erroEl){erroEl.textContent='Preencha usuario e senha.';erroEl.style.display='block';}return; }
 
-  // Botão de loading
   const btnLogin = document.querySelector('.btn-login');
   if(btnLogin){ btnLogin.textContent='Entrando...'; btnLogin.disabled=true; }
 
@@ -2377,7 +2630,7 @@ async function fazerLogin(){
       .single();
 
     if(error || !data){
-      alert('Usuário ou senha incorretos.');
+      if(erroEl){erroEl.textContent='Usuario ou senha incorretos.';erroEl.style.display='block';}
       if(btnLogin){ btnLogin.textContent='Entrar'; btnLogin.disabled=false; }
       return;
     }
@@ -2394,6 +2647,9 @@ async function fazerLogin(){
       destino='tela-admin';
       document.getElementById('adm-nome-header').textContent=usuario.nome;
       renderAdmin();
+    } else if(usuario.perfil==='pcp'){
+      destino='tela-pcp-estoque';
+      pcpCarregarDados();
     } else if(usuario.perfil==='operador'||usuario.perfil==='gestor'){
       destino='tela-producao';
       document.getElementById('op-nome-header').textContent=usuario.nome;
@@ -2425,7 +2681,8 @@ async function fazerLogin(){
 
   } catch(e) {
     console.error('Erro login:', e);
-    alert('Erro de conexão. Verifique a internet.');
+    const erroEl2 = document.getElementById('login-erro-msg');
+    if(erroEl2){erroEl2.textContent='Erro de conexao. Verifique a internet.';erroEl2.style.display='block';}
     if(btnLogin){ btnLogin.textContent='Entrar'; btnLogin.disabled=false; }
   }
 }
@@ -6178,6 +6435,413 @@ window.addEventListener('load', () => {
     if(login) login.classList.remove('ativa');
     pinAvancar(1);
   }
+
+
+// ══ PCP — MÓDULO INTEGRADO ══
+// Carregado quando perfil = 'pcp' ou 'admin'
+const PCP = {
+  estoque: [], mp: [], ops: [], pp: [],
+  optOP: null, optPP: [],
+};
+const PCP_ESP_C = ['2mm','3mm','4mm','5mm','6mm','8mm','10mm','12mm','15mm','19mm'];
+const PCP_ESP_L = ['3+3mm','4+4mm','5+5mm','6+6mm','8+8mm','10+10mm'];
+const PCP_PIPELINE = {
+  'Comum':     ['Corte','Lapidacao','Expedicao'],
+  'Temperado': ['Corte','Lapidacao','Lavagem','Tempera','Expedicao'],
+  'Laminado':  ['Corte','Lapidacao','Lavagem','Laminacao','Expedicao'],
+  'Insulado':  ['Corte','Lapidacao','Lavagem','Insulamento','Expedicao'],
+};
+
+function pcpGetPipeline(item){
+  const d=item.descricao||'';
+  if(d.includes('Laminado'))  return [...PCP_PIPELINE['Laminado']];
+  if(d.includes('Temperado')) return [...PCP_PIPELINE['Temperado']];
+  if(d.includes('Insulado'))  return [...PCP_PIPELINE['Insulado']];
+  return [...PCP_PIPELINE['Comum']];
+}
+
+async function pcpCarregarDados(){
+  try {
+    const [{data:mpD},{data:entD},{data:empD},{data:opsD},{data:ppD}] = await Promise.all([
+      supa.from('materia_prima').select('*').eq('ativo',true).order('tipo').order('espessura'),
+      supa.from('entradas_mp').select('*'),
+      supa.from('empenhos').select('*').in('status',['empenhado','consumido']),
+      supa.from('atendimentos').select('*,clientes(*),itens_atd(*)').in('status',['pedido','producao','concluido']).order('criado_em',{ascending:false}),
+      supa.from('pecas_padrao').select('*').eq('ativo',true),
+    ]);
+    PCP.mp = mpD||[];
+    PCP.estoque = PCP.mp.map(m=>{
+      const ents=(entD||[]).filter(e=>e.mp_id===m.id);
+      const emp=(empD||[]).filter(e=>e.mp_id===m.id).reduce((s,e)=>s+e.qty_chapas,0);
+      const tot=ents.reduce((s,e)=>s+e.qty,0);
+      return{...m,qty_entrada:tot,qty_empenhada:emp,saldo:tot-emp,lotes:[...new Set(ents.map(e=>e.cod_lote).filter(Boolean))]};
+    });
+    PCP.ops = (opsD||[]).map(a=>({
+      ...a, cliente: a.clientes?.razao||a.id,
+      itens: (a.itens_atd||[]).map(it=>({...it,larg:it.larg||0,alt:it.alt||0,l_r:it.l_r||it.larg,a_r:it.a_r||it.alt}))
+    }));
+    PCP.pp = ppD||[];
+    if(!PCP.mp.length) pcpUsarSimulacao();
+  } catch(e) { pcpUsarSimulacao(); }
+  pcpPopularFiltroEsp();
+  pcpRenderEstoque();
+  pcpRenderOps();
+  pcpPopularSels();
+}
+
+function pcpUsarSimulacao(){
+  const SIM_MP=[
+    {id:1,tipo:'Vidro Comum',espessura:'4mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao nacional'},
+    {id:2,tipo:'Vidro Comum',espessura:'6mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao nacional'},
+    {id:3,tipo:'Vidro Comum',espessura:'6mm',cor:'Incolor',larg_mm:2440,alt_mm:3660,descricao:'Jumbo'},
+    {id:4,tipo:'Vidro Comum',espessura:'6mm',cor:'Fume',larg_mm:2000,alt_mm:3000,descricao:'Padrao fume'},
+    {id:5,tipo:'Vidro Comum',espessura:'8mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao nacional'},
+    {id:6,tipo:'Vidro Comum',espessura:'10mm',cor:'Incolor',larg_mm:2440,alt_mm:3660,descricao:'Jumbo'},
+    {id:7,tipo:'Vidro Comum',espessura:'6mm',cor:'Refletivo',larg_mm:2000,alt_mm:3000,descricao:'Saint-Gobain · Cool-Lite SKN 176'},
+    {id:8,tipo:'Vidro Laminado',espessura:'6+6mm',cor:'Incolor',larg_mm:2140,alt_mm:3300,descricao:'Padrao laminado'},
+    {id:9,tipo:'Vidro Laminado',espessura:'4+4mm',cor:'Incolor',larg_mm:2140,alt_mm:3300,descricao:'Padrao laminado'},
+  ];
+  const QTY=[15,12,8,6,10,4,3,7,5],EMP=[5,4,2,1,3,0,0,2,1];
+  const LOTES=[['NF-001','NF-002'],['NF-003'],['NF-004'],['NF-003'],['NF-005'],['NF-005'],[],['NF-006'],['NF-006']];
+  PCP.mp=SIM_MP;
+  PCP.estoque=SIM_MP.map((m,i)=>({...m,qty_entrada:QTY[i],qty_empenhada:EMP[i],saldo:QTY[i]-EMP[i],lotes:LOTES[i]}));
+  // Usar OPs já carregadas no S.atendimentos
+  const opsLocal = Object.values(S.atendimentos||{}).filter(a=>['pedido','producao','concluido'].includes(a.status));
+  PCP.ops = opsLocal.length ? opsLocal.map(a=>({
+    id:a.cliente?.atd||a.id, op_numero:a.opNumero||a.cliente?.atd,
+    status:a.status, cliente:a.cliente?.razao||'—',
+    itens:(a.itens||[]).map(it=>({...it,larg:it.larg||0,alt:it.alt||0,l_r:it.l_r||it.larg,a_r:it.a_r||it.alt}))
+  })) : [
+    {id:'ATD-RAF-001',op_numero:'OP-RAF-001',status:'pedido',cliente:'Vidracaria Central Ltda',itens:[
+      {id:1001,descricao:'Vidro Comum 6mm Incolor',larg:900,alt:1200,l_r:900,a_r:1200,qty:4,area:1.08,total:712.8,etapa_atual:0,usinagem_desenho:false},
+      {id:1002,descricao:'Vidro Comum 8mm Incolor',larg:600,alt:800,l_r:600,a_r:800,qty:2,area:0.48,total:316.8,etapa_atual:0,usinagem_desenho:false},
+    ]},
+    {id:'ATD-RAF-003',op_numero:'OP-RAF-003',status:'pedido',cliente:'Construtora Horizonte SA',itens:[
+      {id:3001,descricao:'Vidro Comum 10mm Incolor',larg:900,alt:2100,l_r:900,a_r:2100,qty:4,area:1.89,total:1814.4,etapa_atual:0,usinagem_desenho:true},
+      {id:3002,descricao:'Vidro Laminado 6+6mm Incolor',larg:1200,alt:1500,l_r:1200,a_r:1500,qty:2,area:1.8,total:1512,etapa_atual:0,usinagem_desenho:false},
+    ]},
+  ];
+  PCP.pp=[];
+}
+
+function pcpPopularFiltroEsp(){
+  const sel=document.getElementById('pcp-filtro-esp');
+  if(!sel) return;
+  const esps=[...new Set(PCP.mp.map(m=>m.espessura))].sort((a,b)=>parseFloat(a)-parseFloat(b));
+  sel.innerHTML='<option value="">Todas esp.</option>'+esps.map(e=>`<option>${e}</option>`).join('');
+}
+
+function pcpPopularSels(){
+  const ops=PCP.ops.filter(a=>a.op_numero);
+  ['pcp-optmax-sel','pcp-etiq-sel'].forEach(id=>{
+    const s=document.getElementById(id);
+    if(!s) return;
+    s.innerHTML='<option value="">— Selecione —</option>'+ops.map(a=>`<option value="${a.id}">${a.op_numero} · ${a.cliente}</option>`).join('');
+  });
+  const ag=PCP.ops.filter(a=>a.status==='pedido').length;
+  const b=document.getElementById('pcp-badge-nav');
+  if(b){b.style.display=ag>0?'inline-flex':'none';b.textContent=ag;}
+}
+
+// ── ESTOQUE ──
+function pcpRenderEstoque(){
+  const tipo=document.getElementById('pcp-filtro-tipo')?.value||'';
+  const esp=document.getElementById('pcp-filtro-esp')?.value||'';
+  let lista=PCP.estoque;
+  if(tipo) lista=lista.filter(m=>m.tipo===tipo);
+  if(esp)  lista=lista.filter(m=>m.espessura===esp);
+  const tot=lista.length,bx=lista.filter(m=>m.saldo>0&&m.saldo<=3).length,ze=lista.filter(m=>m.saldo<=0).length;
+  const res=document.getElementById('pcp-estoque-resumo');
+  if(res) res.innerHTML=`
+    <div class="resumo-item"><div class="resumo-num" style="color:var(--azul)">${tot}</div><div class="resumo-lbl">SKUs</div></div>
+    <div class="resumo-item"><div class="resumo-num" style="color:var(--amarelo)">${bx}</div><div class="resumo-lbl">Baixo</div></div>
+    <div class="resumo-item"><div class="resumo-num" style="color:var(--vermelho)">${ze}</div><div class="resumo-lbl">Sem estoque</div></div>`;
+  const el=document.getElementById('pcp-estoque-lista');
+  if(!el) return;
+  if(!lista.length){el.innerHTML='<div style="text-align:center;padding:40px 0;color:var(--texto3)">Nenhuma chapa cadastrada.</div>';return;}
+  const grupos={};lista.forEach(m=>{if(!grupos[m.tipo])grupos[m.tipo]=[];grupos[m.tipo].push(m);});
+  el.innerHTML=Object.entries(grupos).map(([tipo,itens])=>`
+    <p class="sec-label">${tipo}</p>
+    ${itens.map(m=>{
+      const cor=m.saldo<=0?'var(--vermelho)':m.saldo<=3?'var(--amarelo)':'var(--azul)';
+      const tag=m.saldo<=0?'<span style="font-size:10px;background:var(--vermelho-bg);color:var(--vermelho);padding:1px 7px;border-radius:5px;font-weight:600">Sem estoque</span>':m.saldo<=3?'<span style="font-size:10px;background:var(--amarelo-bg);color:var(--amarelo);padding:1px 7px;border-radius:5px;font-weight:600">Baixo</span>':'';
+      return `<div class="card" style="margin-bottom:8px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between">
+          <div>
+            <div style="font-size:10px;font-weight:600;color:var(--azul);letter-spacing:.04em;margin-bottom:2px">${m.espessura} · ${m.cor}</div>
+            <div style="font-size:14px;font-weight:600">${m.larg_mm} x ${m.alt_mm} mm</div>
+            ${m.descricao?`<div style="font-size:11px;color:var(--texto3);margin-top:1px">${m.descricao}</div>`:''}
+            ${m.lotes?.length?`<div style="margin-top:5px">${m.lotes.map(l=>`<span style="font-size:9px;background:var(--azul-bg);color:#0C447C;padding:1px 6px;border-radius:4px;font-family:var(--mono);margin-right:3px">${l}</span>`).join('')}</div>`:''}
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:28px;font-weight:700;color:${cor};line-height:1">${m.saldo}</div>
+            <div style="font-size:10px;color:var(--texto3)">chapas</div>${tag}
+          </div>
+        </div>
+        <div style="margin-top:8px"><button class="btn btn-secundario btn-sm" onclick="pcpAbrirEntradaMP(${m.id})">+ Entrada</button></div>
+      </div>`;
+    }).join('')}`).join('');
+}
+
+function pcpAbrirEntrada(){
+  ['pcp-ent-tipo','pcp-ent-esp','pcp-ent-cor','pcp-ent-larg','pcp-ent-alt','pcp-ent-qty','pcp-ent-lote','pcp-ent-forn','pcp-ent-obs','pcp-ent-ref-marca','pcp-ent-ref-modelo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('pcp-ent-erro').style.display='none';
+  document.getElementById('pcp-ent-ref-wrap').style.display='none';
+  document.getElementById('pcp-modal-entrada').classList.add('aberto');
+}
+function pcpAbrirEntradaMP(id){
+  const m=PCP.estoque.find(x=>x.id===id);if(!m)return;
+  pcpAbrirEntrada();
+  setTimeout(()=>{
+    document.getElementById('pcp-ent-tipo').value=m.tipo; pcpEntFiltrarEsp();
+    setTimeout(()=>document.getElementById('pcp-ent-esp').value=m.espessura,100);
+    document.getElementById('pcp-ent-cor').value=m.cor;
+    document.getElementById('pcp-ent-larg').value=m.larg_mm;
+    document.getElementById('pcp-ent-alt').value=m.alt_mm;
+  },100);
+}
+function pcpEntFiltrarEsp(){const t=document.getElementById('pcp-ent-tipo').value;const s=document.getElementById('pcp-ent-esp');s.innerHTML='<option value="">Selecione</option>'+(t==='Vidro Laminado'?PCP_ESP_L:PCP_ESP_C).map(e=>`<option>${e}</option>`).join('');}
+function pcpEntRefletivo(){document.getElementById('pcp-ent-ref-wrap').style.display=document.getElementById('pcp-ent-cor').value==='Refletivo'?'block':'none';}
+function pcpCadRefletivo(){document.getElementById('pcp-cad-ref-wrap').style.display=document.getElementById('pcp-cad-cor').value==='Refletivo'?'block':'none';}
+
+async function pcpSalvarEntrada(){
+  const tipo=document.getElementById('pcp-ent-tipo').value,esp=document.getElementById('pcp-ent-esp').value,cor=document.getElementById('pcp-ent-cor').value;
+  const larg=parseInt(document.getElementById('pcp-ent-larg').value)||0,alt=parseInt(document.getElementById('pcp-ent-alt').value)||0,qty=parseInt(document.getElementById('pcp-ent-qty').value)||0;
+  const lote=document.getElementById('pcp-ent-lote').value.trim(),forn=document.getElementById('pcp-ent-forn').value.trim();
+  let obs=document.getElementById('pcp-ent-obs').value.trim();
+  const erro=document.getElementById('pcp-ent-erro');
+  if(cor==='Refletivo'){const m=document.getElementById('pcp-ent-ref-marca').value.trim(),md=document.getElementById('pcp-ent-ref-modelo').value.trim();if(!m||!md){erro.textContent='Informe marca e modelo.';erro.style.display='flex';return;}obs=`${m} · ${md}${obs?' · '+obs:''}`;}
+  if(!tipo||!esp||!cor||!larg||!alt||qty<1){erro.textContent='Preencha todos os campos obrigatorios.';erro.style.display='flex';return;}
+  try{
+    let mpId=PCP.mp.find(m=>m.tipo===tipo&&m.espessura===esp&&m.cor===cor&&m.larg_mm===larg&&m.alt_mm===alt)?.id;
+    if(!mpId){const{data}=await supa.from('materia_prima').insert({tipo,espessura:esp,cor,larg_mm:larg,alt_mm:alt,descricao:obs||null,criado_por:S.vendedor?.id}).select().single();mpId=data.id;}
+    await supa.from('entradas_mp').insert({mp_id:mpId,tipo,espessura:esp,cor,larg_mm:larg,alt_mm:alt,qty,cod_lote:lote||null,fornecedor:forn||null,obs:obs||null,criado_por:S.vendedor?.id});
+    fecharModal('pcp-modal-entrada'); await pcpCarregarDados();
+  }catch(e){
+    const ex=PCP.estoque.find(m=>m.tipo===tipo&&m.espessura===esp&&m.cor===cor&&m.larg_mm===larg&&m.alt_mm===alt);
+    if(ex){ex.qty_entrada+=qty;ex.saldo+=qty;if(lote)ex.lotes.push(lote);}
+    else{const id=Date.now();const nm={id,tipo,espessura:esp,cor,larg_mm:larg,alt_mm:alt,descricao:obs||null};PCP.mp.push(nm);PCP.estoque.push({...nm,qty_entrada:qty,qty_empenhada:0,saldo:qty,lotes:lote?[lote]:[]});}
+    fecharModal('pcp-modal-entrada'); pcpPopularFiltroEsp(); pcpRenderEstoque();
+  }
+}
+
+function pcpAbrirCadastroMP(){
+  ['pcp-cad-tipo','pcp-cad-esp','pcp-cad-cor','pcp-cad-larg','pcp-cad-alt','pcp-cad-desc','pcp-cad-ref-marca','pcp-cad-ref-modelo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('pcp-cad-erro').style.display='none';
+  document.getElementById('pcp-cad-ref-wrap').style.display='none';
+  document.getElementById('pcp-modal-cad-mp').classList.add('aberto');
+}
+
+async function pcpSalvarCadastroMP(){
+  const tipo=document.getElementById('pcp-cad-tipo').value,esp=document.getElementById('pcp-cad-esp').value.trim(),cor=document.getElementById('pcp-cad-cor').value;
+  const larg=parseInt(document.getElementById('pcp-cad-larg').value)||0,alt=parseInt(document.getElementById('pcp-cad-alt').value)||0;
+  let desc=document.getElementById('pcp-cad-desc').value.trim();
+  const erro=document.getElementById('pcp-cad-erro');
+  if(cor==='Refletivo'){const m=document.getElementById('pcp-cad-ref-marca').value.trim(),md=document.getElementById('pcp-cad-ref-modelo').value.trim();if(!m||!md){erro.textContent='Informe marca e modelo.';erro.style.display='flex';return;}desc=`${m} · ${md}${desc?' · '+desc:''}`;}
+  if(!tipo||!esp||!cor||!larg||!alt){erro.textContent='Preencha todos os campos.';erro.style.display='flex';return;}
+  try{await supa.from('materia_prima').insert({tipo,espessura:esp,cor,larg_mm:larg,alt_mm:alt,descricao:desc||null,criado_por:S.vendedor?.id});fecharModal('pcp-modal-cad-mp');await pcpCarregarDados();}
+  catch(e){const id=Date.now();const nm={id,tipo,espessura:esp,cor,larg_mm:larg,alt_mm:alt,descricao:desc};PCP.mp.push(nm);PCP.estoque.push({...nm,qty_entrada:0,qty_empenhada:0,saldo:0,lotes:[]});fecharModal('pcp-modal-cad-mp');pcpPopularFiltroEsp();pcpRenderEstoque();}
+}
+
+// ── OPs ──
+let _pcpOpsStatus='pedido';
+function pcpOpsAba(st){
+  _pcpOpsStatus=st;
+  const mapa={pedido:'ag',producao:'pr',concluido:'co'};
+  ['ag','pr','co'].forEach(k=>document.getElementById('pcp-tab-'+k)?.classList.remove('ativo'));
+  document.getElementById('pcp-tab-'+(mapa[st]||'ag'))?.classList.add('ativo');
+  pcpRenderOps();
+}
+
+function pcpRenderOps(){
+  const lista=PCP.ops.filter(a=>a.status===_pcpOpsStatus);
+  const el=document.getElementById('pcp-ops-lista');
+  if(!el) return;
+  if(!lista.length){el.innerHTML='<div style="text-align:center;padding:40px 0;color:var(--texto3)">Nenhuma OP nesta fila.</div>';return;}
+  el.innerHTML=lista.map(a=>{
+    const tot=(a.itens||[]).reduce((s,i)=>s+(i.total||0),0);
+    const tag=a.status==='pedido'?'<span style="font-size:10px;background:var(--amarelo-bg);color:var(--amarelo);padding:2px 8px;border-radius:5px;font-weight:600">Aguardando</span>':a.status==='producao'?'<span style="font-size:10px;background:var(--azul-bg);color:#0C447C;padding:2px 8px;border-radius:5px;font-weight:600">Em Producao</span>':'<span style="font-size:10px;background:var(--verde-bg);color:var(--verde);padding:2px 8px;border-radius:5px;font-weight:600">Concluido</span>';
+    return `<div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:13px;font-weight:700;font-family:var(--mono)">${a.op_numero||a.id}</span>${tag}
+      </div>
+      <div style="font-size:14px;font-weight:500;margin-bottom:2px">${a.cliente}</div>
+      <div style="font-size:12px;color:var(--texto3);margin-bottom:10px">${(a.itens||[]).length} item(s) · R$ ${fmt(tot)}</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secundario btn-sm" onclick="pcpIrPlano('${a.id}')">Plano de corte</button>
+        <button class="btn btn-primario btn-sm" onclick="pcpIrEtiq('${a.id}')">Etiquetas</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function pcpIrPlano(id){document.getElementById('pcp-optmax-sel').value=id;pcpOptmaxCarregar();ir('tela-pcp-optmax');}
+function pcpIrEtiq(id){document.getElementById('pcp-etiq-sel').value=id;pcpEtiqCarregar();ir('tela-pcp-etiquetas');}
+
+// ── OPTMAX PCP ──
+function pcpOptmaxCarregar(){
+  const id=document.getElementById('pcp-optmax-sel').value;
+  const body=document.getElementById('pcp-optmax-body');
+  if(!id){body.style.display='none';return;}
+  PCP.optOP=PCP.ops.find(a=>a.id===id); PCP.optPP=[];
+  body.style.display='block';
+  document.getElementById('pcp-optmax-plano').style.display='none';
+  pcpRenderOptGrupos();
+}
+
+function pcpRenderOptGrupos(){
+  const op=PCP.optOP; if(!op) return;
+  const grupos={};
+  (op.itens||[]).forEach(it=>{if(!grupos[it.descricao])grupos[it.descricao]={d:it.descricao,itens:[],area:0};grupos[it.descricao].itens.push(it);grupos[it.descricao].area+=(it.area||0)*(it.qty||1);});
+  document.getElementById('pcp-optmax-grupos').innerHTML=
+    `<p class="sec-label">Itens da ${op.op_numero}</p>`
+    +Object.values(grupos).map(g=>{
+      const sug=pcpSugerirChapa(g);
+      const tag=sug.ok
+        ?`<span style="font-size:10px;background:var(--verde-bg);color:var(--verde);padding:2px 8px;border-radius:5px;font-weight:600">Ok ${sug.n} chapa(s) · ${sug.ap}%</span>`
+        :sug.alt
+          ?`<span style="font-size:10px;background:var(--amarelo-bg);color:var(--amarelo);padding:2px 8px;border-radius:5px;font-weight:600">Alt: ${sug.alt}</span>`
+          :`<span style="font-size:10px;background:var(--vermelho-bg);color:var(--vermelho);padding:2px 8px;border-radius:5px;font-weight:600">Comprar: ${sug.buy}</span>`;
+      return `<div class="card">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px">${g.d}</div>
+        <div style="font-size:12px;color:var(--texto3);margin-bottom:8px">${g.itens.reduce((s,i)=>s+(i.qty||1),0)} pcs · ${fmt(g.area)} m2</div>
+        ${tag}${sug.mp?`<div style="font-size:11px;color:var(--texto2);margin-top:4px">Chapa: ${sug.mp.larg_mm}x${sug.mp.alt_mm}mm</div>`:''}
+        <button class="btn btn-primario btn-sm" style="margin-top:10px" onclick="pcpGerarPlano('${encodeURIComponent(g.d)}')">Gerar plano de corte</button>
+      </div>`;
+    }).join('');
+}
+
+function pcpSugerirChapa(g){
+  const d=g.d,esp=d.match(/(\d+\+?\d*mm)/)?.[1]||'',cor=d.match(/(Incolor|Fume|Verde|Bronze|Refletivo)/)?.[1]||'Incolor';
+  const tipo=d.includes('Laminado')?'Vidro Laminado':'Vidro Comum';
+  const disp=PCP.estoque.filter(m=>m.tipo===tipo&&m.espessura===esp&&m.cor===cor&&m.saldo>0).sort((a,b)=>b.larg_mm*b.alt_mm-a.larg_mm*a.alt_mm);
+  if(disp.length){const b=disp[0],ac=(b.larg_mm/1000)*(b.alt_mm/1000),n=Math.ceil(g.area/ac/0.85),ap=Math.min(99,Math.round(g.area/(n*ac)*100));return{ok:true,mp:b,n:Math.min(n,b.saldo),ap};}
+  const alt=PCP.estoque.filter(m=>m.tipo===tipo&&m.saldo>0).sort((a,b)=>b.larg_mm*b.alt_mm-a.larg_mm*a.alt_mm)[0];
+  if(alt) return{ok:false,alt:`${alt.espessura} ${alt.cor} ${alt.larg_mm}x${alt.alt_mm}mm (${alt.saldo})`,mp:alt};
+  return{ok:false,buy:`${esp} ${cor} ${tipo}`,mp:null};
+}
+
+function pcpGerarPlano(enc){
+  const d=decodeURIComponent(enc),op=PCP.optOP;
+  const itens=(op.itens||[]).filter(i=>i.descricao===d);
+  const g={d,itens,area:itens.reduce((s,i)=>s+(i.area||0)*(i.qty||1),0)};
+  const sug=pcpSugerirChapa(g); if(!sug.mp){alert('Nenhuma chapa disponivel.');return;}
+  const pecas=[];
+  itens.forEach(it=>{for(let q=0;q<(it.qty||1);q++)pecas.push({id:it.id+'_'+q,L:it.l_r||it.larg,A:it.a_r||it.alt,d:`${it.larg}x${it.alt}`});});
+  PCP.optPP.forEach(pp=>pecas.push({id:'pp'+pp.id,L:pp.larg_mm,A:pp.alt_mm,d:pp.descricao,p:true}));
+  const plano=pcpCalcPlano(pecas,sug.mp.larg_mm,sug.mp.alt_mm);
+  pcpMostrarPlano(plano,sug.mp);
+}
+
+function pcpCalcPlano(pecas,cL,cA){
+  const s=[...pecas].sort((a,b)=>b.L*b.A-a.L*a.A),chapas=[];
+  s.forEach(p=>{let ok=false;for(const c of chapas){const pos=pcpAchPos(c.oc,p.L,p.A,cL,cA);if(pos){c.ps.push({...p,...pos});c.oc.push({x:pos.x,y:pos.y,L:p.L,A:p.A});ok=true;break;}}if(!ok)chapas.push({ps:[{...p,x:0,y:0}],oc:[{x:0,y:0,L:p.L,A:p.A}]});});
+  chapas.forEach(c=>{const aOc=c.ps.reduce((s,p)=>s+p.L*p.A,0);c.ap=Math.round(aOc/(cL*cA)*100);});
+  return{chapas,cL,cA};
+}
+function pcpAchPos(oc,pL,pA,cL,cA){for(let y=0;y<=cA-pA;y+=50)for(let x=0;x<=cL-pL;x+=50)if(!pcpColide(oc,x,y,pL,pA))return{x,y};return null;}
+function pcpColide(oc,x,y,pL,pA){for(const o of oc)if(x<o.x+o.L&&x+pL>o.x&&y<o.y+o.A&&y+pA>o.y)return true;return false;}
+
+function pcpMostrarPlano(plano,mp){
+  document.getElementById('pcp-optmax-plano').style.display='block';
+  const sc=180/Math.max(plano.cL,plano.cA),W=Math.round(plano.cL*sc),H=Math.round(plano.cA*sc);
+  const CORES=['#0F2547','#2D6A4F','#854F0B','#7C3AED','#B45309','#0369A1'];
+  document.getElementById('pcp-optmax-plano-wrap').innerHTML=
+    `<div class="alerta alerta-info"><strong>${plano.chapas.length} chapa(s)</strong> de ${mp.larg_mm}x${mp.alt_mm}mm (${mp.espessura} ${mp.cor})</div>`
+    +plano.chapas.map((c,ci)=>`<div class="card"><div style="font-size:12px;font-weight:600;color:var(--azul);margin-bottom:8px">Chapa ${ci+1} · ${c.ap}% aproveitamento</div><div class="pcp-plano-grid" style="width:${W}px;height:${H}px">${c.ps.map((p,pi)=>{const px=Math.round(p.x*sc),py=Math.round(p.y*sc),pw=Math.round(p.L*sc)-1,ph=Math.round(p.A*sc)-1,cor=CORES[pi%CORES.length];return`<div class="pcp-plano-peca" style="left:${px}px;top:${py}px;width:${pw}px;height:${ph}px;border-color:${cor};background:${cor}22">${p.d}${p.p?'*':''}</div>`;}).join('')}</div><div style="font-size:10px;color:var(--texto3);margin-top:4px">* peca padrao</div></div>`).join('');
+}
+
+// Pecas padrao
+function pcpAbrirPP(){pcpRenderPPLista();document.getElementById('pcp-modal-pp').classList.add('aberto');}
+function pcpRenderPPLista(){const el=document.getElementById('pcp-pp-lista-modal');if(!PCP.pp.length){el.innerHTML='<div style="text-align:center;padding:16px 0;color:var(--texto3);font-size:12px">Nenhuma peca padrao.</div>';return;}el.innerHTML=PCP.pp.map(p=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--borda)"><div><div style="font-size:12px;font-weight:500">${p.descricao}</div><div style="font-size:11px;color:var(--texto3)">${p.tipo} ${p.espessura} · ${p.larg_mm}x${p.alt_mm}mm</div></div><button class="btn btn-primario btn-sm" onclick="pcpInserirPP(${p.id})">Inserir</button></div>`).join('');}
+function pcpInserirPP(id){const p=PCP.pp.find(x=>x.id===id);if(p&&!PCP.optPP.find(x=>x.id===id))PCP.optPP.push(p);fecharModal('pcp-modal-pp');if(PCP.optOP)pcpRenderOptGrupos();}
+async function pcpSalvarPP(){const d=document.getElementById('pcp-pp-desc').value.trim(),t=document.getElementById('pcp-pp-tipo').value,e=document.getElementById('pcp-pp-esp').value.trim(),c=document.getElementById('pcp-pp-cor').value,L=parseInt(document.getElementById('pcp-pp-larg').value)||0,A=parseInt(document.getElementById('pcp-pp-alt').value)||0;if(!d||!t||!e||!c||!L||!A){alert('Preencha todos os campos.');return;}try{const{data}=await supa.from('pecas_padrao').insert({descricao:d,tipo:t,espessura:e,cor:c,larg_mm:L,alt_mm:A,criado_por:S.vendedor?.id}).select().single();PCP.pp.push(data);}catch(err){PCP.pp.push({id:Date.now(),descricao:d,tipo:t,espessura:e,cor:c,larg_mm:L,alt_mm:A});}['pcp-pp-desc','pcp-pp-esp','pcp-pp-larg','pcp-pp-alt'].forEach(id=>document.getElementById(id).value='');pcpRenderPPLista();}
+
+// ── ETIQUETAS ──
+function pcpEtiqCarregar(){
+  const id=document.getElementById('pcp-etiq-sel').value,body=document.getElementById('pcp-etiq-body');
+  if(!id){body.style.display='none';return;}
+  const op=PCP.ops.find(a=>a.id===id);if(!op)return;
+  body.style.display='block';
+  document.getElementById('pcp-etiq-preview-wrap').style.display='none';
+  const totPcs=(op.itens||[]).reduce((s,i)=>s+(i.qty||1),0),emLote=totPcs>10;
+  document.getElementById('pcp-etiq-itens').innerHTML=(op.itens||[]).map(item=>{
+    const etapas=pcpGetPipeline(item),et=item.etapa_atual||0;
+    return `<div class="card" style="display:flex;align-items:center;gap:10px">
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600">${item.descricao}</div>
+        <div style="font-size:11px;color:var(--texto3)">${item.larg}x${item.alt}mm · ${item.qty} pcs</div>
+        <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:5px">${etapas.map((e,i)=>`<span style="font-size:8px;padding:2px 4px;border-radius:3px;${i===et?'background:var(--azul);color:#fff':i<et?'background:var(--verde-bg);color:var(--verde)':'background:var(--bg);border:.5px solid var(--borda);color:var(--texto3)'}">${e}</span>`).join('')}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        ${emLote&&item.qty>1?'<span style="font-size:10px;background:var(--amarelo-bg);color:var(--amarelo);padding:1px 7px;border-radius:5px;font-weight:600">Lote</span>':''}
+        ${item.usinagem_desenho?'<span style="font-size:10px;background:var(--azul-bg);color:#0C447C;padding:1px 7px;border-radius:5px;font-weight:600">Desenho</span>':''}
+      </div>
+    </div>`;
+  }).join('')+(emLote?`<div class="alerta alerta-warn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Mais de 10 pecas — recomendado etiqueta em lote.</div>`:'');
+}
+
+async function pcpEtiqPreview(){
+  const id=document.getElementById('pcp-etiq-sel').value,op=PCP.ops.find(a=>a.id===id);if(!op)return;
+  document.getElementById('pcp-etiq-preview-wrap').style.display='block';
+  const totPcs=(op.itens||[]).reduce((s,i)=>s+(i.qty||1),0),emLote=totPcs>10,etqs=[];
+  for(const it of(op.itens||[])){if(emLote&&it.qty>1)etqs.push(await pcpMkEtiqHTML(op,it,true));else for(let q=0;q<(it.qty||1);q++)etqs.push(await pcpMkEtiqHTML(op,it,false,q+1));}
+  document.getElementById('pcp-etiq-preview-grid').innerHTML=etqs.join('');
+}
+
+async function pcpMkEtiqHTML(op,item,lote,num){
+  const etapas=pcpGetPipeline(item),et=item.etapa_atual||0;
+  let qrImg='';
+  if(typeof QRCode!=='undefined'){try{qrImg=await QRCode.toDataURL(`${location.origin}?atd=${op.id}&item=${item.id}`,{width:64,margin:1,color:{dark:'#0F2547',light:'#fff'}});}catch(e){}}
+  return `<div class="pcp-etiq-wrap">
+    ${item.usinagem_desenho?`<div style="position:absolute;top:6px;right:6px;font-size:8px;background:var(--azul-bg);color:var(--azul);padding:1px 5px;border-radius:3px;font-weight:600">Desenho</div>`:''}
+    <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:5px;border-bottom:.5px solid var(--borda);margin-bottom:6px">
+      <div><div style="font-size:10px;font-weight:700;color:var(--azul)">MAX VIDROS</div><div style="font-size:9px;font-family:var(--mono);color:var(--texto3)">${op.op_numero||op.id}</div></div>
+      ${lote?`<span style="font-size:9px;background:var(--amarelo-bg);color:var(--amarelo);padding:1px 6px;border-radius:4px;font-weight:600">LOTE ${item.qty}pcs</span>`:`<span style="font-size:9px;color:var(--texto3)">Peca ${num}/${item.qty}</span>`}
+    </div>
+    <div style="display:flex;gap:8px">
+      <div style="flex:1">
+        <div style="font-size:11px;font-weight:600;color:var(--texto);margin-bottom:2px">${item.descricao}</div>
+        <div style="font-size:14px;font-weight:700;color:var(--azul);margin-bottom:2px">${item.larg}x${item.alt}mm</div>
+        <div style="font-size:10px;color:var(--texto3);margin-bottom:5px">${op.cliente}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:2px">${etapas.map((e,i)=>`<span style="font-size:8px;padding:1px 4px;border-radius:2px;${i===et?'background:var(--azul);color:#fff':i<et?'background:var(--verde-bg);color:var(--verde)':'background:var(--bg);border:.5px solid var(--borda);color:var(--texto3)'}">${e}</span>`).join('')}</div>
+      </div>
+      ${qrImg?`<img src="${qrImg}" style="width:60px;height:60px;flex-shrink:0;border-radius:4px">`:``}
+    </div>
+  </div>`;
+}
+
+async function pcpEtiqImprimir(){
+  const id=document.getElementById('pcp-etiq-sel').value,op=PCP.ops.find(a=>a.id===id);
+  if(!op){alert('Selecione uma OP.');return;}
+  if(typeof window.jspdf==='undefined'){alert('PDF carregando, tente novamente.');return;}
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  const EW=100,EH=80,MX=5,MY=5,EX=5,EY=5,COL=3;
+  const totPcs=(op.itens||[]).reduce((s,i)=>s+(i.qty||1),0),emLote=totPcs>10,etqs=[];
+  (op.itens||[]).forEach(it=>{if(emLote&&it.qty>1)etqs.push({op,it,lote:true,n:1});else for(let q=0;q<(it.qty||1);q++)etqs.push({op,it,lote:false,n:q+1});});
+  for(let idx=0;idx<etqs.length;idx++){
+    const{op:o,it,lote,n}=etqs[idx];
+    const pos=idx%(COL*3),col=pos%COL,row=Math.floor(pos/COL);
+    if(pos===0&&idx>0)doc.addPage();
+    const x=MX+col*(EW+EX),y=MY+row*(EH+EY),etapas=pcpGetPipeline(it),et=it.etapa_atual||0;
+    doc.setDrawColor(15,37,71);doc.setLineWidth(.5);doc.roundedRect(x,y,EW,EH,2,2,'S');
+    doc.setFillColor(15,37,71);doc.roundedRect(x,y,EW,10,2,2,'F');doc.rect(x,y+6,EW,4,'F');
+    doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text('MAX VIDROS',x+3,y+7);
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.text(o.op_numero||o.id,x+EW-3,y+7,{align:'right'});
+    doc.setTextColor(15,37,71);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text((it.descricao||'').substring(0,36),x+3,y+18);
+    doc.setFontSize(13);doc.text(`${it.larg}x${it.alt}mm`,x+3,y+28);
+    doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(100,100,100);doc.text((o.cliente||'').substring(0,30),x+3,y+34);
+    if(lote){doc.setFillColor(250,238,218);doc.roundedRect(x+3,y+36,28,5,1,1,'F');doc.setTextColor(186,117,23);doc.setFontSize(7);doc.setFont('helvetica','bold');doc.text(`LOTE ${it.qty}pcs`,x+5,y+40);}
+    else{doc.setTextColor(130,130,130);doc.setFontSize(7);doc.setFont('helvetica','normal');doc.text(`Peca ${n}/${it.qty}`,x+3,y+40);}
+    let ex=x+3;etapas.forEach((e,i)=>{const tw=doc.getTextWidth(e)+3;if(ex>x+EW-20)return;if(i===et){doc.setFillColor(15,37,71);doc.roundedRect(ex,y+43,tw,4.5,1,1,'F');doc.setTextColor(255,255,255);}else if(i<et){doc.setFillColor(225,245,238);doc.roundedRect(ex,y+43,tw,4.5,1,1,'F');doc.setTextColor(15,110,86);}else{doc.setFillColor(244,243,239);doc.roundedRect(ex,y+43,tw,4.5,1,1,'F');doc.setTextColor(160,160,160);}doc.setFontSize(5.5);doc.setFont('helvetica',i===et?'bold':'normal');doc.text(e,ex+1.5,y+46.5);ex+=tw+2;});
+    if(it.usinagem_desenho){doc.setFillColor(226,235,248);doc.roundedRect(x+EW-20,y+12,17,5,1,1,'F');doc.setTextColor(15,37,71);doc.setFontSize(6);doc.setFont('helvetica','bold');doc.text('Desenho',x+EW-19,y+15.5);}
+    if(typeof QRCode!=='undefined'){try{const qrData=await QRCode.toDataURL(`${location.origin}?atd=${o.id}&item=${it.id}`,{width:128,margin:1,color:{dark:'#0F2547',light:'#ffffff'}});doc.addImage(qrData,'PNG',x+EW-22,y+EH-23,19,19);}catch(e){}}
+  }
+  doc.save(`Etiquetas_${op.op_numero||op.id}.pdf`);
+  try{await supa.from('etiquetas').insert(etqs.map(q=>({atd_id:q.op.id,item_id:q.it.id,tipo:q.lote?'lote':'individual',qty_pecas:q.lote?q.it.qty:1,qr_payload:`${location.origin}?atd=${q.op.id}&item=${q.it.id}`,gerado_por:S.vendedor?.id})));}catch(e){}
+}
+// ══ FIM PCP ══
 
   // iOS banner
   if (isIOS() && !isInStandaloneMode()) {
