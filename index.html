@@ -2305,6 +2305,10 @@ function ir(id){
   }
   // Atualizar nav desktop se ativo
   if(document.body.classList.contains('desktop')) atualizarNavDesktop(id);
+  // PCP — recarregar OPs do banco ao abrir a tela
+  if(id==='tela-pcp-ops' && S.perfil==='pcp' || id==='tela-pcp-ops' && S.perfil==='admin'){
+    pcpRecarregarOPs();
+  }
 }
 function voltar(){
   if(pilha.length<=1)return;
@@ -6461,6 +6465,28 @@ function pcpGetPipeline(item){
   if(d.includes('Temperado')) return [...PCP_PIPELINE['Temperado']];
   if(d.includes('Insulado'))  return [...PCP_PIPELINE['Insulado']];
   return [...PCP_PIPELINE['Comum']];
+}
+
+async function pcpRecarregarOPs(){
+  try {
+    const { data } = await supa
+      .from('atendimentos')
+      .select('*, clientes(*), itens_atd(*)')
+      .in('status', ['pedido','producao','concluido'])
+      .order('criado_em', {ascending: false});
+    if(data && data.length){
+      PCP.ops = data.map(a=>({
+        ...a,
+        cliente: a.clientes?.razao || a.id,
+        itens: (a.itens_atd||[]).map(it=>({
+          ...it, larg:it.larg||0, alt:it.alt||0,
+          l_r:it.l_r||it.larg, a_r:it.a_r||it.alt
+        }))
+      }));
+      pcpRenderOps();
+      pcpPopularSels();
+    }
+  } catch(e){ console.warn('pcpRecarregarOPs:', e); }
 }
 
 async function pcpCarregarDados(){
