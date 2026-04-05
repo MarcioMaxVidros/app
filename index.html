@@ -2649,7 +2649,7 @@ async function fazerLogin(){
       renderAdmin();
     } else if(usuario.perfil==='pcp'){
       destino='tela-pcp-estoque';
-      pcpCarregarDados();
+      setTimeout(()=>pcpCarregarDados(), 100);
     } else if(usuario.perfil==='operador'||usuario.perfil==='gestor'){
       destino='tela-producao';
       document.getElementById('op-nome-header').textContent=usuario.nome;
@@ -2668,7 +2668,7 @@ async function fazerLogin(){
 
     pilha=[destino];
     const h=document.getElementById(destino);
-    h.classList.add('ativa');
+    if(h) h.classList.add('ativa');
     setTimeout(()=>l.classList.remove('ativa','saindo'),300);
 
     try { if(localStorage.getItem('mx_modo')==='desktop'){ ativarModoDesktop(); renderSidebar(); atualizarNavDesktop(destino); } } catch(e){}
