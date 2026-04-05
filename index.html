@@ -2620,70 +2620,73 @@ async function fazerLogin(){
   const btnLogin = document.querySelector('.btn-login');
   if(btnLogin){ btnLogin.textContent='Entrando...'; btnLogin.disabled=true; }
 
+  // 1. Autenticar no Supabase
+  let usuario;
   try {
     const { data, error } = await supa
-      .from('usuarios')
-      .select('*')
-      .eq('login', u)
-      .eq('senha', p)
-      .eq('ativo', true)
-      .single();
-
+      .from('usuarios').select('*')
+      .eq('login', u).eq('senha', p).eq('ativo', true).single();
     if(error || !data){
       if(erroEl){erroEl.textContent='Usuario ou senha incorretos.';erroEl.style.display='block';}
       if(btnLogin){ btnLogin.textContent='Entrar'; btnLogin.disabled=false; }
       return;
     }
+    usuario = data;
+  } catch(e) {
+    if(erroEl){erroEl.textContent='Erro de conexao. Verifique a internet.';erroEl.style.display='block';}
+    if(btnLogin){ btnLogin.textContent='Entrar'; btnLogin.disabled=false; }
+    return;
+  }
 
-    const usuario = data;
-    S.vendedor = { nome: usuario.nome, iniciais: usuario.iniciais, id: usuario.id };
-    S.perfil   = usuario.perfil;
+  // 2. Login OK — roteamento por perfil
+  if(btnLogin){ btnLogin.textContent='Entrar'; btnLogin.disabled=false; }
+  S.vendedor = { nome: usuario.nome, iniciais: usuario.iniciais, id: usuario.id };
+  S.perfil   = usuario.perfil;
 
-    const l = document.getElementById('tela-login');
-    l.classList.add('saindo');
-    let destino;
+  const l = document.getElementById('tela-login');
+  l.classList.add('saindo');
+  let destino;
 
-    if(usuario.perfil==='admin'){
-      destino='tela-admin';
-      document.getElementById('adm-nome-header').textContent=usuario.nome;
-      renderAdmin();
-    } else if(usuario.perfil==='pcp'){
-      destino='tela-pcp-estoque';
-      setTimeout(()=>pcpCarregarDados(), 100);
-    } else if(usuario.perfil==='operador'||usuario.perfil==='gestor'){
-      destino='tela-producao';
+  if(usuario.perfil==='admin'){
+    destino='tela-admin';
+    try{ document.getElementById('adm-nome-header').textContent=usuario.nome; renderAdmin(); }catch(e){ console.warn('admin render:',e); }
+  } else if(usuario.perfil==='pcp'){
+    destino='tela-pcp-estoque';
+    setTimeout(()=>pcpCarregarDados(), 200);
+  } else if(usuario.perfil==='operador'||usuario.perfil==='gestor'){
+    destino='tela-producao';
+    try{
       document.getElementById('op-nome-header').textContent=usuario.nome;
       document.getElementById('op-perfil-header').textContent=usuario.perfil==='gestor'?'Gestor · Acesso total':'Operador de Produção';
       const btnMet=document.getElementById('btn-nav-metricas');
       if(btnMet) btnMet.style.display=usuario.perfil==='gestor'?'flex':'none';
       renderFilaProducao();
-    }else if(usuario.perfil==='interno'){
-      destino='tela-interno';
-      document.getElementById('int-nome-header').textContent=usuario.nome.split(' ')[0];
-      atualizarBadgeInterno();
-    }else{
-      destino='tela-home';
-      atualizarResumo();
-    }
+    }catch(e){ console.warn('operador render:',e); }
+  } else if(usuario.perfil==='interno'){
+    destino='tela-interno';
+    try{ document.getElementById('int-nome-header').textContent=usuario.nome.split(' ')[0]; atualizarBadgeInterno(); }catch(e){ console.warn('interno render:',e); }
+  } else {
+    destino='tela-home';
+    try{ atualizarResumo(); }catch(e){ console.warn('home render:',e); }
+  }
 
-    pilha=[destino];
-    const h=document.getElementById(destino);
-    if(h) h.classList.add('ativa');
-    setTimeout(()=>l.classList.remove('ativa','saindo'),300);
+  pilha=[destino];
+  const h=document.getElementById(destino);
+  if(h) h.classList.add('ativa');
+  setTimeout(()=>l.classList.remove('ativa','saindo'),300);
 
-    try { if(localStorage.getItem('mx_modo')==='desktop'){ ativarModoDesktop(); renderSidebar(); atualizarNavDesktop(destino); } } catch(e){}
-    carregarProdutosEspeciais();
-    carregarTiposUsinagem();
-    renderUsinagemOrcamento();
+  try { if(localStorage.getItem('mx_modo')==='desktop'){ ativarModoDesktop(); renderSidebar(); atualizarNavDesktop(destino); } } catch(e){}
 
-    // Carregar dados reais do banco em background
-    carregarDadosBD(usuario);
+  // Funções auxiliares apenas para perfis comerciais
+  if(!['pcp','operador','gestor','admin'].includes(usuario.perfil)){
+    try{ carregarProdutosEspeciais(); }catch(e){}
+    try{ carregarTiposUsinagem(); }catch(e){}
+    try{ renderUsinagemOrcamento(); }catch(e){}
+  }
 
-  } catch(e) {
-    console.error('Erro login:', e);
-    const erroEl2 = document.getElementById('login-erro-msg');
-    if(erroEl2){erroEl2.textContent='Erro de conexao. Verifique a internet.';erroEl2.style.display='block';}
-    if(btnLogin){ btnLogin.textContent='Entrar'; btnLogin.disabled=false; }
+  // Carregar dados do banco em background
+  if(!['pcp'].includes(usuario.perfil)){
+    try{ carregarDadosBD(usuario); }catch(e){ console.warn('carregarDadosBD:',e); }
   }
 }
 
