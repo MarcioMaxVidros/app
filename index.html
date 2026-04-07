@@ -1947,7 +1947,10 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
   </div>
 </div>
 
-<!-- MODAIS PCP -->
+</div><!-- /desktop-content -->
+</div><!-- /app -->
+
+<!-- MODAIS PCP — fora do #app para evitar overflow:hidden do desktop -->
 <div class="modal-overlay" id="pcp-modal-entrada">
   <div class="modal-box">
     <div class="modal-header"><div class="modal-titulo">Entrada de M.P.</div><button class="modal-fechar" onclick="fecharModal('pcp-modal-entrada')">×</button></div>
@@ -2014,9 +2017,6 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
     <button class="btn btn-primario btn-sm" style="width:100%;height:42px" onclick="pcpSalvarPP()">Cadastrar peca</button>
   </div>
 </div>
-
-</div><!-- /desktop-content -->
-</div><!-- /app -->
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 // ══ SUPABASE ══
 const SUPA_URL = 'https://rvsjawrcnwexymjfuxwt.supabase.co';
