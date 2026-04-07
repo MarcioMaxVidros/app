@@ -177,7 +177,7 @@ body{height:100%;height:-webkit-fill-available;overflow:hidden;font-family:var(-
 .fup-tabs{display:flex;gap:0;margin-bottom:12px;border-radius:var(--r);overflow:hidden;border:.5px solid var(--borda)}
 .fup-tab{flex:1;padding:8px;font-size:12px;font-weight:500;color:var(--texto2);background:var(--card);border:none;cursor:pointer;font-family:var(--font)}
 .fup-tab.ativo{background:var(--azul);color:#fff;font-weight:600}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;padding:16px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:16px}
 .modal-overlay.aberto{display:flex}
 .modal-box{background:var(--card);border-radius:var(--r);padding:20px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto}
 .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
@@ -2332,7 +2332,7 @@ function voltar(){
 
 function fecharModal(id){
   const m=document.getElementById(id);
-  if(m) m.classList.remove('aberto');
+  if(m){m.classList.remove('aberto');m.style.display='';}
 }
 
 function sair(){
@@ -6736,10 +6736,12 @@ function pcpRenderEstoque(){
 }
 
 function pcpAbrirEntrada(){
-  ['pcp-ent-tipo','pcp-ent-esp','pcp-ent-cor','pcp-ent-larg','pcp-ent-alt','pcp-ent-qty','pcp-ent-lote','pcp-ent-forn','pcp-ent-obs','pcp-ent-ref-marca','pcp-ent-ref-modelo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('pcp-ent-erro').style.display='none';
-  document.getElementById('pcp-ent-ref-wrap').style.display='none';
-  document.getElementById('pcp-modal-entrada').classList.add('aberto');
+  const ids=['pcp-ent-tipo','pcp-ent-esp','pcp-ent-cor','pcp-ent-larg','pcp-ent-alt','pcp-ent-qty','pcp-ent-lote','pcp-ent-forn','pcp-ent-obs','pcp-ent-ref-marca','pcp-ent-ref-modelo'];
+  ids.forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const erro=document.getElementById('pcp-ent-erro'); if(erro)erro.style.display='none';
+  const ref=document.getElementById('pcp-ent-ref-wrap'); if(ref)ref.style.display='none';
+  const m=document.getElementById('pcp-modal-entrada');
+  if(m){m.style.display='flex';m.classList.add('aberto');}
 }
 function pcpAbrirEntradaMP(id){
   const m=PCP.estoque.find(x=>x.id===id);if(!m)return;
@@ -6779,9 +6781,10 @@ async function pcpSalvarEntrada(){
 
 function pcpAbrirCadastroMP(){
   ['pcp-cad-tipo','pcp-cad-esp','pcp-cad-cor','pcp-cad-larg','pcp-cad-alt','pcp-cad-desc','pcp-cad-ref-marca','pcp-cad-ref-modelo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('pcp-cad-erro').style.display='none';
-  document.getElementById('pcp-cad-ref-wrap').style.display='none';
-  document.getElementById('pcp-modal-cad-mp').classList.add('aberto');
+  const erro=document.getElementById('pcp-cad-erro'); if(erro)erro.style.display='none';
+  const ref=document.getElementById('pcp-cad-ref-wrap'); if(ref)ref.style.display='none';
+  const m=document.getElementById('pcp-modal-cad-mp');
+  if(m){m.style.display='flex';m.classList.add('aberto');}
 }
 
 async function pcpSalvarCadastroMP(){
