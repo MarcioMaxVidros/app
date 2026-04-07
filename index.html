@@ -2303,12 +2303,14 @@ function ir(id){
     carregarChave();
     if(!GPS.ativo){ iniciarGPS(()=>renderLeads()); }else{ renderLeads(); }
   }
+  // Sync ao abrir telas críticas
+  if(id==='tela-aprovacoes'||id==='tela-interno') syncDados();
+  if(id==='tela-producao') syncDados();
+  if(id==='tela-followup') syncDados();
+  // PCP — recarregar OPs do banco ao abrir a tela
+  if(id==='tela-pcp-ops'&&(S.perfil==='pcp'||S.perfil==='admin')) pcpRecarregarOPs();
   // Atualizar nav desktop se ativo
   if(document.body.classList.contains('desktop')) atualizarNavDesktop(id);
-  // PCP — recarregar OPs do banco ao abrir a tela
-  if(id==='tela-pcp-ops' && S.perfil==='pcp' || id==='tela-pcp-ops' && S.perfil==='admin'){
-    pcpRecarregarOPs();
-  }
 }
 function voltar(){
   if(pilha.length<=1)return;
@@ -2328,7 +2330,13 @@ function voltar(){
   if(ant==='tela-atividades')renderAtiv();
 }
 
+function fecharModal(id){
+  const m=document.getElementById(id);
+  if(m) m.classList.remove('aberto');
+}
+
 function sair(){
+  pararSync();
   S.vendedor={nome:'',iniciais:''};
   S.perfil='vendedor';
   S.cliente=null;
@@ -2882,15 +2890,25 @@ async function confirmarEtapa(itemId){
   if(expedido) alert(`✅ ${item.descricao}\nExpedição concluída — item pronto para entrega!`);
 }
 
-function baixarObs(itemId, obsIdx){
+async function baixarObs(itemId, obsIdx){
   const atd=S.atendimentos[S.atdApontamento];
   if(!atd)return;
   const item=atd.itens.find(i=>String(i.id)===String(itemId));
   if(!item||!item.ocorrencias)return;
+  const obs = item.ocorrencias[obsIdx];
   item.ocorrencias.splice(obsIdx,1);
   document.getElementById('apt-itens-lista').innerHTML=atd.itens.map(i=>renderPipelineItem(i,true)).join('');
-  // Atualizar contador na home do operador também
   if(document.getElementById('op-ocorr-lista')) renderFilaProducao();
+  // Gravar encerramento no Supabase
+  try {
+    await supa.from('ocorrencias')
+      .update({ encerrada:true, encerrada_por:S.vendedor.nome, encerrada_em:new Date().toISOString() })
+      .eq('atd_id', S.atdApontamento)
+      .eq('item_id', itemId)
+      .eq('encerrada', false)
+      .order('criado_em', {ascending:false})
+      .limit(1);
+  } catch(e){ console.warn('baixarObs:', e); }
 }
 
 function numOP(a){ return (a.op&&a.op.numero) ? a.op.numero : a.cliente.atd; }
@@ -3336,9 +3354,17 @@ function utUnidade(un){
   }
 }
 
-function carregarTiposUsinagem(){
+async function carregarTiposUsinagem(){
+  try {
+    const { data } = await supa.from('tipos_usinagem').select('*').eq('ativo',true).order('nome');
+    if(data && data.length){
+      S.tiposUsinagem = data.map(t=>({id:t.id, nome:t.nome, unidade:t.unidade||'unidade'}));
+      persistirTiposUsinagem();
+      return;
+    }
+  } catch(e){ console.warn('carregarTiposUsinagem BD:', e); }
+  // Fallback localStorage
   try{ const r=localStorage.getItem('mx_tipos_usinagem'); if(r) S.tiposUsinagem=JSON.parse(r); }catch(e){ S.tiposUsinagem=[]; }
-  // Se nenhum tipo cadastrado, carregar padrões de demonstração
   if(!S.tiposUsinagem.length){
     S.tiposUsinagem=[
       {id:1,nome:'Furo simples',unidade:'unidade'},
@@ -3355,23 +3381,32 @@ function persistirTiposUsinagem(){
   try{ localStorage.setItem('mx_tipos_usinagem', JSON.stringify(S.tiposUsinagem)); }catch(e){}
 }
 
-function salvarTipoUsinagem(){
+async function salvarTipoUsinagem(){
   const nome = document.getElementById('ut-nome').value.trim();
   if(!nome){ alert('Informe o nome do tipo de usinagem.'); return; }
   const id = Date.now();
-  S.tiposUsinagem.push({ id, nome, unidade: _utUnidade });
+  const novoTipo = { id, nome, unidade: _utUnidade };
+  S.tiposUsinagem.push(novoTipo);
   persistirTiposUsinagem();
   document.getElementById('ut-nome').value = '';
   _utUnidade = 'unidade'; utUnidade('unidade');
   renderTiposUsinagem();
   renderUsinagemOrcamento();
+  // Gravar no Supabase
+  try {
+    const { data } = await supa.from('tipos_usinagem')
+      .insert({ nome, unidade: _utUnidade||'unidade', criado_por: S.vendedor?.id||null })
+      .select().single();
+    if(data) novoTipo.id = data.id; // atualizar id local com id do banco
+  } catch(e){ console.warn('salvarTipoUsinagem:', e); }
 }
 
-function excluirTipoUsinagem(id){
+async function excluirTipoUsinagem(id){
   S.tiposUsinagem = S.tiposUsinagem.filter(t=>t.id!==id);
   persistirTiposUsinagem();
   renderTiposUsinagem();
   renderUsinagemOrcamento();
+  try { await supa.from('tipos_usinagem').update({ativo:false}).eq('id',id); } catch(e){ console.warn('excluirTipoUsinagem:', e); }
 }
 
 function renderTiposUsinagem(){
@@ -3445,6 +3480,63 @@ function resetUsinagemOrcamento(){
     const p=document.getElementById('usin-preco-'+t.id); if(p) p.value='';
   });
   const sub=document.getElementById('orc-usinagem-subtotal'); if(sub) sub.style.display='none';
+}
+
+// ══ SYNC PERIÓDICO ══
+let _syncTimer = null;
+
+async function syncDados(){
+  if(!S.vendedor?.id && !S.perfil) return;
+  try {
+    let query = supa
+      .from('atendimentos')
+      .select('*, clientes(*), itens_atd(*), etapas_producao(*), ocorrencias(*), desenhos(*)')
+      .order('criado_em', {ascending: false})
+      .limit(200);
+    if(S.perfil==='vendedor') query=query.eq('usuario_id', S.vendedor.id);
+    if(S.perfil==='operador') query=query.in('status',['pedido','producao','concluido']);
+    const { data: atds, error } = await query;
+    if(error||!atds||!atds.length) return;
+    atds.forEach(a => {
+      const clienteDB = a.clientes||{};
+      const itens = (a.itens_atd||[]).sort((x,y)=>x.ordem-y.ordem).map(it=>({
+        id:it.id, descricao:it.descricao, detalhe:it.detalhe,
+        larg:it.larg, alt:it.alt, lR:it.l_r, aR:it.a_r,
+        qty:it.qty, area:it.area, total:it.total, warn:it.warn||false,
+        etapaAtual:_calcEtapaAtual(a.etapas_producao||[], it.id),
+        logEtapas:_mapLogEtapas(a.etapas_producao||[], it.id),
+        ocorrencias:(a.ocorrencias||[]).filter(o=>o.item_id===it.id).map(o=>({tipo:o.tipo,texto:o.texto,etapa:o.etapa,op:o.operador,hora:o.hora})),
+        pipeline:it.pipeline||null,
+        usinagem:{modelado:it.usinagem_modelado||false,tipos:it.usinagem_tipos||[],desenho:it.usinagem_desenho||false}
+      }));
+      S.atendimentos[a.id] = {
+        cliente:{cnpj:clienteDB.cnpj||'',razao:clienteDB.razao||'',contato:clienteDB.contato||'',tel:clienteDB.tel||'',email:clienteDB.email||'',segmento:clienteDB.segmento||'',atd:a.id,hora:a.criado_em?new Date(a.criado_em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):''},
+        itens, status:a.status, tabela:a.tabela||'MX1',
+        totalEnviado:a.total_enviado||0, horaEnvio:a.hora_envio||null,
+        dataEnvio:a.data_envio?new Date(a.data_envio).toLocaleDateString('pt-BR'):null,
+        revisoes:a.revisoes||0,
+        dataEfetivacao:a.data_efetivacao?new Date(a.data_efetivacao).toLocaleDateString('pt-BR'):null,
+        prazoMaxDias:a.prazo_max_dias||null,
+        op:a.op_numero?{numero:a.op_numero,efetivadoPor:a.op_efetivado_por,efetivadoEm:a.op_efetivado_em}:null,
+        recusa:a.recusa_motivo?{motivo:a.recusa_motivo,recusadoPor:a.recusa_por,recusadoEm:a.recusa_em}:null,
+        desenhos:(a.desenhos||[]).map(d=>({dataUrl:d.data_url||null,nome:d.nome,tipo:d.tipo,adicionadoPor:d.adicionado_por,hora:d.hora}))
+      };
+    });
+    // Atualizar UI da tela ativa
+    const telaAtiva = document.querySelector('.tela.ativa')?.id;
+    if(telaAtiva==='tela-aprovacoes'||telaAtiva==='tela-interno'){ atualizarBadgeInterno(); renderFilaInterno(); }
+    if(telaAtiva==='tela-producao'){ renderFilaProducao(); }
+    if(telaAtiva==='tela-followup'){ if(document.getElementById('fup-lista')) renderFollowUp(); }
+  } catch(e){ console.warn('sync:', e.message); }
+}
+
+function iniciarSyncPeriodico(){
+  if(_syncTimer) clearInterval(_syncTimer);
+  _syncTimer = setInterval(syncDados, 60000); // a cada 60s
+}
+
+function pararSync(){
+  if(_syncTimer){ clearInterval(_syncTimer); _syncTimer=null; }
 }
 
 async function carregarDadosBD(usuario){
@@ -3550,6 +3642,7 @@ async function carregarDadosBD(usuario){
     }
 
     console.log(`✅ BD carregado: ${atds.length} atendimentos`);
+    iniciarSyncPeriodico();
 
   } catch(e){
     console.error('❌ carregarDadosBD:', e.message);
@@ -3572,7 +3665,21 @@ function _mapLogEtapas(etapas, itemId){
   return log;
 }
 
-function carregarProdutosEspeciais(){
+async function carregarProdutosEspeciais(){
+  try {
+    const { data } = await supa.from('produtos_especiais').select('*').eq('ativo',true).order('nome');
+    if(data && data.length){
+      S.produtosEspeciais = data.map(p=>({
+        id: p.id, nome: p.nome, especificacao: p.especificacao,
+        prazosDias: p.prazo_dias||10, soInterno: p.so_interno||true,
+        precos:{ MX1: p.preco_mx1, MX2: p.preco_mx2||p.preco_mx1, MX3: p.preco_mx3||p.preco_mx1 }
+      }));
+      persistirProdutosEspeciais();
+      injetarProdutosEspeciaisNoCAT();
+      return;
+    }
+  } catch(e){ console.warn('carregarProdutosEspeciais BD:', e); }
+  // Fallback localStorage
   try {
     const raw = localStorage.getItem('mx_produtos_especiais');
     if(raw) S.produtosEspeciais = JSON.parse(raw);
@@ -3611,7 +3718,7 @@ function peDisp(modo){
   }
 }
 
-function salvarProdutoEspecial(){
+async function salvarProdutoEspecial(){
   const nome  = document.getElementById('pe-nome').value.trim();
   const spec  = document.getElementById('pe-spec').value.trim();
   const prazo = parseInt(document.getElementById('pe-prazo').value)||0;
@@ -3625,24 +3732,39 @@ function salvarProdutoEspecial(){
     alert('Já existe um produto padrão com esse nome. Use um nome diferente.'); return;
   }
   const id = Date.now();
-  const produto = { id, nome, especificacao:spec, prazosDias:prazo, soInterno:_peDisp==='interno', precos:{MX1:mx1, MX2:mx2||mx1, MX3:mx3||mx1} };
-  // Substituir se já existir produto especial com mesmo nome
+  const soInterno = _peDisp==='interno';
+  const produto = { id, nome, especificacao:spec, prazosDias:prazo, soInterno, precos:{MX1:mx1, MX2:mx2||mx1, MX3:mx3||mx1} };
   const idx = S.produtosEspeciais.findIndex(p=>p.nome===nome);
   if(idx>=0) S.produtosEspeciais[idx] = produto;
   else S.produtosEspeciais.push(produto);
   persistirProdutosEspeciais();
   injetarProdutosEspeciaisNoCAT();
-  // Limpar form
   ['pe-nome','pe-spec','pe-prazo','pe-mx1','pe-mx2','pe-mx3'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   _peDisp='interno'; peDisp('interno');
   renderProdutosEspeciais();
+  // Gravar no Supabase
+  try {
+    const payload = {
+      nome, especificacao:spec, prazo_dias:prazo,
+      preco_mx1:mx1, preco_mx2:mx2||mx1, preco_mx3:mx3||mx1,
+      so_interno:soInterno, ativo:true, criado_por:S.vendedor?.id||null
+    };
+    const existe = idx>=0;
+    if(existe){
+      await supa.from('produtos_especiais').update(payload).eq('nome',nome);
+    } else {
+      const { data } = await supa.from('produtos_especiais').insert(payload).select().single();
+      if(data) produto.id = data.id;
+    }
+  } catch(e){ console.warn('salvarProdutoEspecial:', e); }
 }
 
-function excluirProdutoEspecial(id){
+async function excluirProdutoEspecial(id){
   S.produtosEspeciais = S.produtosEspeciais.filter(p=>p.id!==id);
   persistirProdutosEspeciais();
   injetarProdutosEspeciaisNoCAT();
   renderProdutosEspeciais();
+  try { await supa.from('produtos_especiais').update({ativo:false}).eq('id',id); } catch(e){ console.warn('excluirProdutoEspecial:', e); }
 }
 
 function renderProdutosEspeciais(){
@@ -6516,6 +6638,7 @@ async function pcpCarregarDados(){
   pcpRenderEstoque();
   pcpRenderOps();
   pcpPopularSels();
+  iniciarSyncPeriodico();
 }
 
 function pcpUsarSimulacao(){
@@ -6707,6 +6830,24 @@ function pcpRenderOps(){
 function pcpIrPlano(id){document.getElementById('pcp-optmax-sel').value=id;pcpOptmaxCarregar();ir('tela-pcp-optmax');}
 function pcpIrEtiq(id){document.getElementById('pcp-etiq-sel').value=id;pcpEtiqCarregar();ir('tela-pcp-etiquetas');}
 
+async function pcpEmpenharChapas(atdId, mpId, qtdChapas, codLote){
+  // Empenha chapas no estoque — bloqueia para próximas OPs
+  try {
+    await supa.from('empenhos').insert({
+      atd_id: atdId,
+      mp_id: mpId,
+      cod_lote: codLote||null,
+      qty_chapas: qtdChapas,
+      status: 'empenhado',
+      empenhado_por: S.vendedor?.id||null
+    });
+    // Atualizar saldo local
+    const mp = PCP.estoque.find(m=>m.id===mpId);
+    if(mp){ mp.qty_empenhada+=qtdChapas; mp.saldo-=qtdChapas; }
+    pcpRenderEstoque();
+  } catch(e){ console.warn('pcpEmpenharChapas:', e); }
+}
+
 // ── OPTMAX PCP ──
 function pcpOptmaxCarregar(){
   const id=document.getElementById('pcp-optmax-sel').value;
@@ -6775,9 +6916,32 @@ function pcpMostrarPlano(plano,mp){
   document.getElementById('pcp-optmax-plano').style.display='block';
   const sc=180/Math.max(plano.cL,plano.cA),W=Math.round(plano.cL*sc),H=Math.round(plano.cA*sc);
   const CORES=['#0F2547','#2D6A4F','#854F0B','#7C3AED','#B45309','#0369A1'];
+  const atdId = PCP.optOP?.id||'';
+  const lotes = PCP.estoque.find(m=>m.id===mp.id)?.lotes||[];
+  const loteInfo = lotes.length ? `Lote: ${lotes[lotes.length-1]}` : 'Sem lote registrado';
   document.getElementById('pcp-optmax-plano-wrap').innerHTML=
-    `<div class="alerta alerta-info"><strong>${plano.chapas.length} chapa(s)</strong> de ${mp.larg_mm}x${mp.alt_mm}mm (${mp.espessura} ${mp.cor})</div>`
-    +plano.chapas.map((c,ci)=>`<div class="card"><div style="font-size:12px;font-weight:600;color:var(--azul);margin-bottom:8px">Chapa ${ci+1} · ${c.ap}% aproveitamento</div><div class="pcp-plano-grid" style="width:${W}px;height:${H}px">${c.ps.map((p,pi)=>{const px=Math.round(p.x*sc),py=Math.round(p.y*sc),pw=Math.round(p.L*sc)-1,ph=Math.round(p.A*sc)-1,cor=CORES[pi%CORES.length];return`<div class="pcp-plano-peca" style="left:${px}px;top:${py}px;width:${pw}px;height:${ph}px;border-color:${cor};background:${cor}22">${p.d}${p.p?'*':''}</div>`;}).join('')}</div><div style="font-size:10px;color:var(--texto3);margin-top:4px">* peca padrao</div></div>`).join('');
+    `<div class="alerta alerta-info"><strong>${plano.chapas.length} chapa(s)</strong> de ${mp.larg_mm}x${mp.alt_mm}mm (${mp.espessura} ${mp.cor}) · ${loteInfo}</div>`
+    +plano.chapas.map((c,ci)=>`<div class="card"><div style="font-size:12px;font-weight:600;color:var(--azul);margin-bottom:8px">Chapa ${ci+1} · ${c.ap}% aproveitamento</div><div class="pcp-plano-grid" style="width:${W}px;height:${H}px">${c.ps.map((p,pi)=>{const px=Math.round(p.x*sc),py=Math.round(p.y*sc),pw=Math.round(p.L*sc)-1,ph=Math.round(p.A*sc)-1,cor=CORES[pi%CORES.length];return`<div class="pcp-plano-peca" style="left:${px}px;top:${py}px;width:${pw}px;height:${ph}px;border-color:${cor};background:${cor}22">${p.d}${p.p?'*':''}</div>`;}).join('')}</div><div style="font-size:10px;color:var(--texto3);margin-top:4px">* peca padrao</div></div>`).join('')
+    +`<button class="btn btn-verde btn-sm" style="width:100%;height:44px;margin-top:4px" onclick="pcpConfirmarPlano('${atdId}',${mp.id},${plano.chapas.length},'${lotes[lotes.length-1]||''}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Confirmar plano · empenhar ${plano.chapas.length} chapa(s)
+      </button>`;
+}
+
+async function pcpConfirmarPlano(atdId, mpId, qtd, lote){
+  await pcpEmpenharChapas(atdId, mpId, qtd, lote);
+  // Atualizar status da OP para producao
+  try {
+    await supa.from('atendimentos').update({status:'producao'}).eq('id', atdId);
+    const op = PCP.ops.find(a=>a.id===atdId);
+    if(op) op.status='producao';
+    pcpRenderOps(); pcpPopularSels();
+  } catch(e){ console.warn('pcpConfirmarPlano:', e); }
+  document.getElementById('pcp-optmax-plano-wrap').innerHTML +=
+    `<div class="alerta alerta-ok" style="margin-top:8px">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>
+      Plano confirmado · chapas empenhadas · OP em producao
+    </div>`;
 }
 
 // Pecas padrao
