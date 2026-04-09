@@ -177,8 +177,8 @@ body{height:100%;height:-webkit-fill-available;overflow:hidden;font-family:var(-
 .fup-tabs{display:flex;gap:0;margin-bottom:12px;border-radius:var(--r);overflow:hidden;border:.5px solid var(--borda)}
 .fup-tab{flex:1;padding:8px;font-size:12px;font-weight:500;color:var(--texto2);background:var(--card);border:none;cursor:pointer;font-family:var(--font)}
 .fup-tab.ativo{background:var(--azul);color:#fff;font-weight:600}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:16px}
-.modal-overlay.aberto{display:flex}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.aberto{display:flex!important}
 .modal-box{background:var(--card);border-radius:var(--r);padding:20px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto}
 .modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .modal-titulo{font-size:16px;font-weight:600}
@@ -6539,7 +6539,8 @@ const manifest = {
   ]
 };
 const mb=new Blob([JSON.stringify(manifest)],{type:'application/json'});
-document.querySelector('link[rel=manifest]').href=URL.createObjectURL(mb);
+const _mlink=document.querySelector('link[rel=manifest]');
+if(_mlink) _mlink.href=URL.createObjectURL(mb);
 
 // Detectar iOS Safari e mostrar banner de instalação
 function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1); }
@@ -6948,7 +6949,7 @@ async function pcpConfirmarPlano(atdId, mpId, qtd, lote){
 }
 
 // Pecas padrao
-function pcpAbrirPP(){pcpRenderPPLista();document.getElementById('pcp-modal-pp').classList.add('aberto');}
+function pcpAbrirPP(){pcpRenderPPLista();const m=document.getElementById('pcp-modal-pp');if(m){m.style.display='flex';m.classList.add('aberto');}}
 function pcpRenderPPLista(){const el=document.getElementById('pcp-pp-lista-modal');if(!PCP.pp.length){el.innerHTML='<div style="text-align:center;padding:16px 0;color:var(--texto3);font-size:12px">Nenhuma peca padrao.</div>';return;}el.innerHTML=PCP.pp.map(p=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--borda)"><div><div style="font-size:12px;font-weight:500">${p.descricao}</div><div style="font-size:11px;color:var(--texto3)">${p.tipo} ${p.espessura} · ${p.larg_mm}x${p.alt_mm}mm</div></div><button class="btn btn-primario btn-sm" onclick="pcpInserirPP(${p.id})">Inserir</button></div>`).join('');}
 function pcpInserirPP(id){const p=PCP.pp.find(x=>x.id===id);if(p&&!PCP.optPP.find(x=>x.id===id))PCP.optPP.push(p);fecharModal('pcp-modal-pp');if(PCP.optOP)pcpRenderOptGrupos();}
 async function pcpSalvarPP(){const d=document.getElementById('pcp-pp-desc').value.trim(),t=document.getElementById('pcp-pp-tipo').value,e=document.getElementById('pcp-pp-esp').value.trim(),c=document.getElementById('pcp-pp-cor').value,L=parseInt(document.getElementById('pcp-pp-larg').value)||0,A=parseInt(document.getElementById('pcp-pp-alt').value)||0;if(!d||!t||!e||!c||!L||!A){alert('Preencha todos os campos.');return;}try{const{data}=await supa.from('pecas_padrao').insert({descricao:d,tipo:t,espessura:e,cor:c,larg_mm:L,alt_mm:A,criado_por:S.vendedor?.id}).select().single();PCP.pp.push(data);}catch(err){PCP.pp.push({id:Date.now(),descricao:d,tipo:t,espessura:e,cor:c,larg_mm:L,alt_mm:A});}['pcp-pp-desc','pcp-pp-esp','pcp-pp-larg','pcp-pp-alt'].forEach(id=>document.getElementById(id).value='');pcpRenderPPLista();}
