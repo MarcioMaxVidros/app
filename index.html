@@ -2856,6 +2856,7 @@ async function confirmarEtapa(itemId){
     // Registrar etapa concluída
     await supa.from('etapas_producao').insert({
       atd_id: S.atdApontamento,
+      item_id: itemId,
       etapa: etapaConc,
       etapa_idx: etapaIdx,
       operador: nomeOp,
@@ -2866,6 +2867,7 @@ async function confirmarEtapa(itemId){
     if(temOcorr){
       await supa.from('ocorrencias').insert({
         atd_id: S.atdApontamento,
+        item_id: itemId,
         tipo: tipoOcorr||'Outro',
         texto: textoOcorr||(tipoOcorr||'Ocorrência registrada'),
         etapa: etapaConc,
