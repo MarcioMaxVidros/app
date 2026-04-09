@@ -6585,6 +6585,19 @@ window.addEventListener('load', () => {
     if(login) login.classList.remove('ativa');
     pinAvancar(1);
   }
+
+  // iOS banner
+  if (isIOS() && !isInStandaloneMode()) {
+    try {
+      const dismissed = localStorage.getItem('ios-banner-dismissed');
+      if (!dismissed) {
+        setTimeout(() => {
+          const banner = document.getElementById('ios-install-banner');
+          if (banner) banner.style.display = 'block';
+        }, 3000);
+      }
+    } catch(e) {}
+  }
 }); // fim window.addEventListener load
 
 
@@ -7065,20 +7078,6 @@ async function pcpEtiqImprimir(){
   try{await supa.from('etiquetas').insert(etqs.map(q=>({atd_id:q.op.id,item_id:q.it.id,tipo:q.lote?'lote':'individual',qty_pecas:q.lote?q.it.qty:1,qr_payload:`${location.origin}?atd=${q.op.id}&item=${q.it.id}`,gerado_por:S.vendedor?.id})));}catch(e){}
 }
 // ══ FIM PCP ══
-
-  // iOS banner
-  if (isIOS() && !isInStandaloneMode()) {
-    try {
-      const dismissed = localStorage.getItem('ios-banner-dismissed');
-      if (!dismissed) {
-        setTimeout(() => {
-          const banner = document.getElementById('ios-install-banner');
-          if (banner) banner.style.display = 'block';
-        }, 3000);
-      }
-    } catch(e) {}
-  }
-});
 </script>
 </body>
 </html>
