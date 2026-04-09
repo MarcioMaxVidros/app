@@ -6653,8 +6653,9 @@ async function pcpCarregarDados(){
       itens: (a.itens_atd||[]).map(it=>({...it,larg:it.larg||0,alt:it.alt||0,l_r:it.l_r||it.larg,a_r:it.a_r||it.alt}))
     }));
     PCP.pp = ppD||[];
-    if(!PCP.mp.length) pcpUsarSimulacao();
-  } catch(e) { pcpUsarSimulacao(); }
+    if(!PCP.mp.length) pcpUsarSimulacaoEstoque();
+    if(!PCP.ops.length) pcpUsarSimulacaoOps();
+  } catch(e) { pcpUsarSimulacaoEstoque(); pcpUsarSimulacaoOps(); }
   pcpPopularFiltroEsp();
   pcpRenderEstoque();
   pcpRenderOps();
@@ -6663,6 +6664,11 @@ async function pcpCarregarDados(){
 }
 
 function pcpUsarSimulacao(){
+  pcpUsarSimulacaoEstoque();
+  pcpUsarSimulacaoOps();
+}
+
+function pcpUsarSimulacaoEstoque(){
   const SIM_MP=[
     {id:1,tipo:'Vidro Comum',espessura:'4mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao nacional'},
     {id:2,tipo:'Vidro Comum',espessura:'6mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao nacional'},
@@ -6678,13 +6684,13 @@ function pcpUsarSimulacao(){
   const LOTES=[['NF-001','NF-002'],['NF-003'],['NF-004'],['NF-003'],['NF-005'],['NF-005'],[],['NF-006'],['NF-006']];
   PCP.mp=SIM_MP;
   PCP.estoque=SIM_MP.map((m,i)=>({...m,qty_entrada:QTY[i],qty_empenhada:EMP[i],saldo:QTY[i]-EMP[i],lotes:LOTES[i]}));
-  // Usar OPs já carregadas no S.atendimentos
-  const opsLocal = Object.values(S.atendimentos||{}).filter(a=>['pedido','producao','concluido'].includes(a.status));
-  PCP.ops = opsLocal.length ? opsLocal.map(a=>({
-    id:a.cliente?.atd||a.id, op_numero:a.opNumero||a.cliente?.atd,
-    status:a.status, cliente:a.cliente?.razao||'—',
-    itens:(a.itens||[]).map(it=>({...it,larg:it.larg||0,alt:it.alt||0,l_r:it.l_r||it.larg,a_r:it.a_r||it.alt}))
-  })) : [
+  PCP.pp=[];
+}
+
+function pcpUsarSimulacaoOps(){
+  // Só usa simulação se não tiver OPs reais
+  if(PCP.ops && PCP.ops.length) return;
+  PCP.ops=[
     {id:'ATD-RAF-001',op_numero:'OP-RAF-001',status:'pedido',cliente:'Vidracaria Central Ltda',itens:[
       {id:1001,descricao:'Vidro Comum 6mm Incolor',larg:900,alt:1200,l_r:900,a_r:1200,qty:4,area:1.08,total:712.8,etapa_atual:0,usinagem_desenho:false},
       {id:1002,descricao:'Vidro Comum 8mm Incolor',larg:600,alt:800,l_r:600,a_r:800,qty:2,area:0.48,total:316.8,etapa_atual:0,usinagem_desenho:false},
@@ -6694,7 +6700,6 @@ function pcpUsarSimulacao(){
       {id:3002,descricao:'Vidro Laminado 6+6mm Incolor',larg:1200,alt:1500,l_r:1200,a_r:1500,qty:2,area:1.8,total:1512,etapa_atual:0,usinagem_desenho:false},
     ]},
   ];
-  PCP.pp=[];
 }
 
 function pcpPopularFiltroEsp(){
