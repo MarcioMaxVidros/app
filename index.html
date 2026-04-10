@@ -3537,7 +3537,12 @@ async function syncDados(){
         PCP.ops = ops.map(a=>({
           ...a,
           cliente: a.clientes?.razao||a.id,
-          itens:(a.itens_atd||[]).map(it=>({...it,larg:it.larg||0,alt:it.alt||0,l_r:it.l_r||it.larg,a_r:it.a_r||it.alt}))
+          itens:(a.itens_atd||[]).map(it=>({
+            ...it,
+            larg:it.larg||0, alt:it.alt||0,
+            l_r:it.l_r||it.larg, a_r:it.a_r||it.alt,
+            etapa_atual: _calcEtapaAtual(a.etapas_producao||[], it.id)
+          }))
         }));
         pcpPopularSels();
         if(telaAtiva==='tela-pcp-ops') pcpRenderOps();
@@ -6609,26 +6614,26 @@ const PCP = {
 };
 const PCP_ESP_C = ['2mm','3mm','4mm','5mm','6mm','8mm','10mm','12mm','15mm','19mm'];
 const PCP_ESP_L = ['3+3mm','4+4mm','5+5mm','6+6mm','8+8mm','10+10mm'];
-const PCP_PIPELINE = {
-  'Comum':     ['Corte','Lapidacao','Expedicao'],
-  'Temperado': ['Corte','Lapidacao','Lavagem','Tempera','Expedicao'],
-  'Laminado':  ['Corte','Lapidacao','Lavagem','Laminacao','Expedicao'],
-  'Insulado':  ['Corte','Lapidacao','Lavagem','Insulamento','Expedicao'],
-};
+// PCP_PIPELINE removido — usa getEtapasItem() para manter pipelines sincronizados com o app principal
 
 function pcpGetPipeline(item){
-  const d=item.descricao||'';
-  if(d.includes('Laminado'))  return [...PCP_PIPELINE['Laminado']];
-  if(d.includes('Temperado')) return [...PCP_PIPELINE['Temperado']];
-  if(d.includes('Insulado'))  return [...PCP_PIPELINE['Insulado']];
-  return [...PCP_PIPELINE['Comum']];
+  // Normaliza o item para o formato esperado por getEtapasItem
+  const shim = {
+    ...item,
+    usinagem: item.usinagem || {
+      modelado: item.usinagem_modelado || false,
+      tipos:    item.usinagem_tipos    || [],
+      desenho:  item.usinagem_desenho  || false
+    }
+  };
+  return getEtapasItem(shim);
 }
 
 async function pcpRecarregarOPs(){
   try {
     const { data } = await supa
       .from('atendimentos')
-      .select('*, clientes(*), itens_atd(*)')
+      .select('*, clientes(*), itens_atd(*), etapas_producao(*)')
       .in('status', ['pedido','producao','concluido'])
       .order('criado_em', {ascending: false});
     if(data && data.length){
@@ -6637,7 +6642,8 @@ async function pcpRecarregarOPs(){
         cliente: a.clientes?.razao || a.id,
         itens: (a.itens_atd||[]).map(it=>({
           ...it, larg:it.larg||0, alt:it.alt||0,
-          l_r:it.l_r||it.larg, a_r:it.a_r||it.alt
+          l_r:it.l_r||it.larg, a_r:it.a_r||it.alt,
+          etapa_atual: _calcEtapaAtual(a.etapas_producao||[], it.id)
         }))
       }));
       pcpRenderOps();
@@ -6978,6 +6984,9 @@ async function pcpConfirmarPlano(atdId, mpId, qtd, lote){
     await supa.from('atendimentos').update({status:'producao'}).eq('id', atdId);
     const op = PCP.ops.find(a=>a.id===atdId);
     if(op) op.status='producao';
+    // Sincroniza S.atendimentos imediatamente — operador vê status producao sem esperar sync
+    if(S.atendimentos[atdId]) S.atendimentos[atdId].status = 'producao';
+    renderFilaProducao();
     pcpRenderOps(); pcpPopularSels();
   } catch(e){ console.warn('pcpConfirmarPlano:', e); }
   document.getElementById('pcp-optmax-plano-wrap').innerHTML +=
