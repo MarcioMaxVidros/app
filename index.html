@@ -1900,21 +1900,12 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
 <div class="tela" id="tela-pcp-optmax">
   <div class="topbar">
     <div class="topbar-row">
-      <button class="btn-voltar" onclick="ir('tela-pcp-ops')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
-      <div style="flex:1"><h1>OptMAX PCP</h1><p>Plano de corte otimizado</p></div>
-      <button onclick="pcpAbrirPP()" style="background:rgba(255,255,255,.1);border:none;border-radius:8px;padding:6px 10px;color:rgba(255,255,255,.8);font-family:var(--font);font-size:11px;cursor:pointer">Pecas padrao</button>
+      <button class="btn-voltar" onclick="optVoltar()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
+      <div style="flex:1"><h1 id="opt-tit">OptMAX Plus</h1><p id="opt-sub">Selecione a matéria-prima</p></div>
+      <button id="opt-btn-pp" onclick="optScrollPP()" style="display:none;background:rgba(255,255,255,.12);border:none;border-radius:8px;padding:6px 10px;color:rgba(255,255,255,.8);font-family:var(--font);font-size:11px;cursor:pointer">Peças padrão</button>
     </div>
   </div>
-  <div class="body">
-    <div class="card">
-      <div class="card-titulo">Selecionar OP para plano de corte</div>
-      <div class="campo" style="margin-bottom:0"><select id="pcp-optmax-sel" onchange="pcpOptmaxCarregar()"><option value="">— Selecione —</option></select></div>
-    </div>
-    <div id="pcp-optmax-body" style="display:none">
-      <div id="pcp-optmax-grupos"></div>
-      <div id="pcp-optmax-plano" style="display:none"><p class="sec-label">Plano de corte</p><div id="pcp-optmax-plano-wrap"></div></div>
-    </div>
-  </div>
+  <div class="body" id="opt-body"></div>
 </div>
 
 <!-- PCP ETIQUETAS -->
@@ -2309,6 +2300,8 @@ function ir(id){
   if(id==='tela-followup') syncDados();
   // PCP — recarregar OPs do banco ao abrir a tela
   if(id==='tela-pcp-ops'&&(S.perfil==='pcp'||S.perfil==='admin')) pcpRecarregarOPs();
+  // OptMAX — reiniciar módulo ao entrar na tela
+  if(id==='tela-pcp-optmax') setTimeout(optIniciar, 50);
   // Atualizar nav desktop se ativo
   if(document.body.classList.contains('desktop')) atualizarNavDesktop(id);
 }
@@ -6876,7 +6869,7 @@ function pcpRenderOps(){
   }).join('');
 }
 
-function pcpIrPlano(id){document.getElementById('pcp-optmax-sel').value=id;pcpOptmaxCarregar();ir('tela-pcp-optmax');}
+function pcpIrPlano(id){ OPT._preselOp=id; ir('tela-pcp-optmax'); }
 function pcpIrEtiq(id){document.getElementById('pcp-etiq-sel').value=id;pcpEtiqCarregar();ir('tela-pcp-etiquetas');}
 
 async function pcpEmpenharChapas(atdId, mpId, qtdChapas, codLote){
@@ -6897,110 +6890,650 @@ async function pcpEmpenharChapas(atdId, mpId, qtdChapas, codLote){
   } catch(e){ console.warn('pcpEmpenharChapas:', e); }
 }
 
-// ── OPTMAX PCP ──
-function pcpOptmaxCarregar(){
-  const id=document.getElementById('pcp-optmax-sel').value;
-  const body=document.getElementById('pcp-optmax-body');
-  if(!id){body.style.display='none';return;}
-  PCP.optOP=PCP.ops.find(a=>a.id===id); PCP.optPP=[];
-  body.style.display='block';
-  document.getElementById('pcp-optmax-plano').style.display='none';
-  pcpRenderOptGrupos();
+// ══ OptMAX Plus ══════════════════════════════════════════════════════════
+// Algoritmo: Recursive Guillotine Partitioning + Beam Search + Variable-Bin Mix
+// Ref: Cintra et al.(2008), Gardeyn & Wauters(2022)
+const OPT_CORES=['#0F2547','#1B5E37','#7C3AED','#B45309','#0369A1','#9D174D','#065F46','#7C2D12'];
+const OPT_MIN_RESTO=100;
+const OPT_BEAM_W=6;
+let OPT={step:0,modo:'auto',mp:null,lap:false,opsDisp:[],opsSel:new Set(),ppAtivos:[],pecas:[],pecasManuais:[],resultado:null,forcedRot:{},_preselOp:null};
+
+// ── Init ──────────────────────────────────────────────────────────────
+function optIniciar(){
+  const presel=OPT._preselOp;
+  OPT={step:0,modo:'auto',mp:null,lap:false,opsDisp:[],opsSel:new Set(),ppAtivos:[],pecas:[],pecasManuais:[{l:600,a:800,q:1}],resultado:null,forcedRot:{},_preselOp:null};
+  const t=document.getElementById('opt-tit'),s=document.getElementById('opt-sub'),pp=document.getElementById('opt-btn-pp');
+  if(t)t.textContent='OptMAX Plus';if(s)s.textContent='Selecione a matéria-prima';if(pp)pp.style.display='none';
+  optRender();
+  // Se veio de pcpIrPlano com um ID, tentar pré-selecionar MP da OP
+  if(presel){ setTimeout(()=>optPreselOP(presel),100); }
 }
 
-function pcpRenderOptGrupos(){
-  const op=PCP.optOP; if(!op) return;
+function optVoltar(){
+  if(OPT.step===0){ir('tela-pcp-ops');return;}
+  OPT.step--;
+  const subs=['Selecione a matéria-prima','Monte o lote','Selecione o tamanho da chapa'];
+  const t=document.getElementById('opt-tit'),s=document.getElementById('opt-sub'),pp=document.getElementById('opt-btn-pp');
+  if(t)t.textContent='OptMAX Plus';if(s)s.textContent=subs[OPT.step]||'';
+  if(pp)pp.style.display=OPT.step===2?'inline-flex':'none';
+  if(OPT.step===0){OPT.mp=null;OPT.opsSel=new Set();}
+  optRender();
+}
+
+function optScrollPP(){
+  const el=document.getElementById('opt-sec-pp');
+  if(el)el.scrollIntoView({behavior:'smooth'});
+}
+
+function optRender(){
+  [optR0,optR1,optR2,optR3][OPT.step]?.();
+}
+
+// Pré-selecionar OP vinda da tela de OPs
+function optPreselOP(atdId){
+  const op=PCP.ops.find(a=>a.id===atdId);if(!op)return;
+  // Descobrir tipo/esp/cor do primeiro item
+  const it=(op.itens||[])[0];if(!it)return;
+  const tipo=it.descricao?.includes('Laminado')?'Vidro Laminado':it.descricao?.includes('Temperado')?'Vidro Temperado':'Vidro Comum';
+  const esp=(it.descricao||'').match(/(\d+\+?\d*mm)/)?.[1]||'6mm';
+  const cor=(it.descricao||'').match(/(Incolor|Fumê|Fume|Verde|Bronze|Refletivo)/i)?.[1]||'Incolor';
+  const mpMatch=PCP.estoque.find(m=>m.tipo===tipo&&m.espessura===esp);
+  if(!mpMatch)return;
+  OPT.mp={tipo,esp,cor};
+  OPT.opsDisp=[op];OPT.opsSel=new Set([atdId]);
+  OPT.step=1;
+  const s=document.getElementById('opt-sub');if(s)s.textContent=`${esp} ${cor}`;
+  const pp=document.getElementById('opt-btn-pp');if(pp)pp.style.display='inline-flex';
+  optRender();
+}
+
+// ── STEP 0: Selecionar MP ─────────────────────────────────────────────
+function optR0(){
+  // Agrupar PCP.estoque por tipo+esp+cor
+  const estoqueRef=PCP.estoque&&PCP.estoque.length?PCP.estoque:[];
   const grupos={};
-  (op.itens||[]).forEach(it=>{if(!grupos[it.descricao])grupos[it.descricao]={d:it.descricao,itens:[],area:0};grupos[it.descricao].itens.push(it);grupos[it.descricao].area+=(it.area||0)*(it.qty||1);});
-  document.getElementById('pcp-optmax-grupos').innerHTML=
-    `<p class="sec-label">Itens da ${op.op_numero}</p>`
-    +Object.values(grupos).map(g=>{
-      const sug=pcpSugerirChapa(g);
-      const tag=sug.ok
-        ?`<span style="font-size:10px;background:var(--verde-bg);color:var(--verde);padding:2px 8px;border-radius:5px;font-weight:600">Ok ${sug.n} chapa(s) · ${sug.ap}%</span>`
-        :sug.alt
-          ?`<span style="font-size:10px;background:var(--amarelo-bg);color:var(--amarelo);padding:2px 8px;border-radius:5px;font-weight:600">Alt: ${sug.alt}</span>`
-          :`<span style="font-size:10px;background:var(--vermelho-bg);color:var(--vermelho);padding:2px 8px;border-radius:5px;font-weight:600">Comprar: ${sug.buy}</span>`;
-      return `<div class="card">
-        <div style="font-size:13px;font-weight:600;margin-bottom:4px">${g.d}</div>
-        <div style="font-size:12px;color:var(--texto3);margin-bottom:8px">${g.itens.reduce((s,i)=>s+(i.qty||1),0)} pcs · ${fmt(g.area)} m2</div>
-        ${tag}${sug.mp?`<div style="font-size:11px;color:var(--texto2);margin-top:4px">Chapa: ${sug.mp.larg_mm}x${sug.mp.alt_mm}mm</div>`:''}
-        <button class="btn btn-primario btn-sm" style="margin-top:10px" onclick="pcpGerarPlano('${encodeURIComponent(g.d)}')">Gerar plano de corte</button>
+  estoqueRef.forEach(m=>{
+    const k=`${m.tipo}|${m.espessura}|${m.cor||'Incolor'}`;
+    if(!grupos[k])grupos[k]={tipo:m.tipo,esp:m.espessura,cor:m.cor||'Incolor',saldo:0,tam:0};
+    grupos[k].saldo+=m.saldo||0;grupos[k].tam++;
+  });
+  // Fallback: se estoque vazio, usar tipos dos itens das OPs
+  if(!Object.keys(grupos).length){
+    PCP.ops.filter(a=>a.status==='pedido').forEach(op=>{
+      (op.itens||[]).forEach(it=>{
+        const tipo=it.descricao?.includes('Laminado')?'Vidro Laminado':it.descricao?.includes('Temperado')?'Vidro Temperado':'Vidro Comum';
+        const esp=(it.descricao||'').match(/(\d+\+?\d*mm)/)?.[1]||'6mm';
+        const k=`${tipo}|${esp}|Incolor`;
+        if(!grupos[k])grupos[k]={tipo,esp,cor:'Incolor',saldo:0,tam:1};
+      });
+    });
+  }
+  const porTipo={};
+  Object.values(grupos).forEach(g=>{if(!porTipo[g.tipo])porTipo[g.tipo]=[];porTipo[g.tipo].push(g);});
+
+  let h=`<div class="card">
+    <div class="card-titulo">Configuração</div>
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div><div style="font-size:13px;font-weight:500">Lapidado</div><div style="font-size:11px;color:var(--texto3)">+1,5 mm por lado em cada peça</div></div>
+      <button style="width:44px;height:24px;border-radius:12px;border:none;cursor:pointer;position:relative;flex-shrink:0;background:${OPT.lap?'var(--azul)':'rgba(0,0,0,.15)'};transition:background .2s" onclick="OPT.lap=!OPT.lap;optR0()">
+        <div style="position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:2px;left:${OPT.lap?22:2}px;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></div>
+      </button>
+    </div>
+  </div>`;
+
+  if(!Object.keys(porTipo).length){
+    h+=`<div style="text-align:center;padding:40px 0;color:var(--texto3);font-size:13px">Nenhuma matéria-prima cadastrada no estoque.</div>`;
+  } else {
+    Object.entries(porTipo).forEach(([tipo,gs])=>{
+      h+=`<p class="sec-label">${tipo}</p>`;
+      gs.forEach(g=>{
+        const temOPs=PCP.ops.some(o=>o.status==='pedido'&&(o.itens||[]).some(i=>(i.descricao||'').includes(g.esp)));
+        const dot=g.saldo>0?'var(--verde)':'var(--amarelo)';
+        h+=`<div class="card" style="margin-bottom:8px;cursor:pointer" onclick="optSelMP('${g.tipo}|${g.esp}|${g.cor}')">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:10px;height:10px;border-radius:50%;background:${dot};flex-shrink:0"></div>
+            <div style="flex:1">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:14px;font-weight:500">${g.esp} · ${g.cor}</span>
+                <span style="font-size:13px;font-weight:500;color:${g.saldo>0?'var(--azul)':'var(--vermelho)'}">${g.saldo} chapas</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-top:3px">
+                <span style="font-size:11px;color:var(--texto3)">${g.tam} tamanho(s) · mix disponível</span>
+                ${temOPs?`<span style="font-size:9px;background:var(--azul-bg);color:#0C447C;padding:1px 6px;border-radius:4px;font-weight:600">OPs aguardando</span>`:''}
+              </div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--texto3)" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+        </div>`;
+      });
+    });
+  }
+  const ob=document.getElementById('opt-body');if(ob)ob.innerHTML=h;
+}
+
+function optSelMP(k){
+  const [tipo,esp,cor]=k.split('|');
+  OPT.mp={tipo,esp,cor};
+  OPT.opsDisp=PCP.ops.filter(o=>o.status==='pedido'&&(o.itens||[]).some(i=>(i.descricao||'').includes(esp)));
+  OPT.opsSel=new Set();OPT.step=1;
+  const s=document.getElementById('opt-sub');if(s)s.textContent=`${esp} ${cor}`;
+  const pp=document.getElementById('opt-btn-pp');if(pp)pp.style.display='inline-flex';
+  optRender();
+}
+
+// ── STEP 1: OPs / Manual ──────────────────────────────────────────────
+function optR1(){
+  const {tipo,esp,cor}=OPT.mp;
+  let h=`<div class="card" style="padding:6px;margin-bottom:10px">
+    <div style="display:flex;gap:4px">
+      <button style="flex:1;height:38px;border:none;border-radius:var(--rs);font-family:var(--font);font-size:12px;font-weight:500;cursor:pointer;background:${OPT.modo==='auto'?'var(--azul)':'transparent'};color:${OPT.modo==='auto'?'#fff':'var(--texto2)'}" onclick="OPT.modo='auto';optR1()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:4px;vertical-align:middle"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>OPs automático
+      </button>
+      <button style="flex:1;height:38px;border:none;border-radius:var(--rs);font-family:var(--font);font-size:12px;font-weight:500;cursor:pointer;background:${OPT.modo==='manual'?'var(--azul)':'transparent'};color:${OPT.modo==='manual'?'#fff':'var(--texto2)'}" onclick="OPT.modo='manual';optR1()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:4px;vertical-align:middle"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Manual · medidas
+      </button>
+    </div>
+  </div>`;
+
+  if(OPT.modo==='auto'){
+    if(!OPT.opsDisp.length){
+      h+=`<div class="alerta alerta-warn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Nenhuma OP aguardando para ${esp} ${cor}.</div>`;
+    } else {
+      h+=`<p class="sec-label">OPs aguardando · ${OPT.opsDisp.length}</p>`;
+      h+=OPT.opsDisp.map(op=>{
+        const its=(op.itens||[]).filter(it=>(it.descricao||'').includes(esp));
+        const pcs=its.reduce((s,i)=>s+(i.qty||1),0);
+        const area=its.reduce((s,i)=>s+(i.area||0)*(i.qty||1),0);
+        const sel=OPT.opsSel.has(op.id);
+        const dims=[...new Set(its.map(i=>`${i.larg||i.l_r||0}×${i.alt||i.a_r||0}`))];
+        return `<div class="card" style="margin-bottom:8px;cursor:pointer;${sel?'border-color:var(--azul);background:var(--azul-bg)':''}" onclick="optTogOP('${op.id}')">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:22px;height:22px;border-radius:50%;border:1.5px solid ${sel?'var(--azul)':'var(--borda)'};background:${sel?'var(--azul)':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              ${sel?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>':''}
+            </div>
+            <div style="flex:1">
+              <div style="display:flex;justify-content:space-between">
+                <span style="font-size:13px;font-weight:500;font-family:var(--mono)">${op.op_numero||op.id}</span>
+                <span style="font-size:10px;color:var(--texto3)">${pcs} pcs · ${area.toFixed(2)} m²</span>
+              </div>
+              <div style="font-size:12px;color:var(--texto2);margin-top:2px">${op.cliente||''}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:5px">
+                ${dims.map(d=>`<span style="font-size:9px;background:var(--bg);border:.5px solid var(--borda);padding:1px 5px;border-radius:3px;font-family:var(--mono)">${d}mm</span>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    const n=OPT.opsSel.size;
+    h+=`<button class="btn ${n?'btn-primario':'btn-disabled'}" ${n?'':'disabled'} style="${n?'':'opacity:.45'}" onclick="optIrChapas()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      ${n?`Otimizar ${n} OP(s) — mix de chapas`:'Selecione ao menos uma OP'}
+    </button>`;
+  } else {
+    h+=`<div class="alerta alerta-info"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Informe as peças — o sistema distribui no melhor mix via Guillotine recursivo</div>`;
+    h+=`<div class="card"><div class="card-titulo">Peças a cortar</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 60px 36px;gap:6px;margin-bottom:8px">
+        <div style="font-size:10px;color:var(--texto3)">Larg mm</div>
+        <div style="font-size:10px;color:var(--texto3)">Alt mm</div>
+        <div style="font-size:10px;color:var(--texto3)">Qtd</div>
+        <div></div>
+      </div>
+      ${OPT.pecasManuais.map((p,i)=>`<div style="display:grid;grid-template-columns:1fr 1fr 60px 36px;gap:6px;margin-bottom:6px;align-items:center">
+        <input type="number" value="${p.l}" min="1" style="height:42px;border-radius:var(--rs);border:.5px solid var(--borda);background:var(--bg);font-family:var(--font);font-size:15px;color:var(--texto);padding:0 10px;outline:none;width:100%;-webkit-appearance:none" oninput="OPT.pecasManuais[${i}].l=+this.value||0">
+        <input type="number" value="${p.a}" min="1" style="height:42px;border-radius:var(--rs);border:.5px solid var(--borda);background:var(--bg);font-family:var(--font);font-size:15px;color:var(--texto);padding:0 10px;outline:none;width:100%;-webkit-appearance:none" oninput="OPT.pecasManuais[${i}].a=+this.value||0">
+        <input type="number" value="${p.q}" min="1" max="99" style="height:42px;border-radius:var(--rs);border:.5px solid var(--borda);background:var(--bg);font-family:var(--font);font-size:15px;color:var(--texto);padding:0 10px;outline:none;width:100%;-webkit-appearance:none" oninput="OPT.pecasManuais[${i}].q=+this.value||1">
+        <button onclick="OPT.pecasManuais.splice(${i},1);optR1()" style="width:36px;height:42px;border-radius:var(--rs);border:.5px solid var(--borda);background:var(--vermelho-bg);color:var(--vermelho);cursor:pointer;display:flex;align-items:center;justify-content:center">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>`).join('')}
+      <button class="btn btn-secundario" style="height:40px;margin-top:4px" onclick="OPT.pecasManuais.push({l:600,a:800,q:1});optR1()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Adicionar peça
+      </button>
+    </div>`;
+    const ok=OPT.pecasManuais.some(p=>p.l>0&&p.a>0&&p.q>0);
+    h+=`<button class="btn ${ok?'btn-primario':'btn-disabled'}" ${ok?'':'disabled'} style="${ok?'':'opacity:.45'}" onclick="optIrChapas()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      ${ok?'Otimizar — mix de chapas':'Adicione ao menos uma peça'}
+    </button>`;
+  }
+
+  // Peças padrão
+  const ppList=(PCP.pp||[]).filter(p=>(p.espessura||p.esp||'')===esp);
+  if(ppList.length){
+    h+=`<p class="sec-label" id="opt-sec-pp">Peças padrão · ${esp} ${cor}</p>`;
+    h+=ppList.map(p=>{
+      const at=OPT.ppAtivos.some(x=>x.id===p.id);
+      const nome=p.descricao||p.nome||'PP';
+      const L=p.larg_mm||p.l||0,A=p.alt_mm||p.a||0;
+      return `<div class="card" style="margin-bottom:8px;${at?'border-color:var(--azul);background:var(--azul-bg)':''}">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div><div style="font-size:13px;font-weight:500">${nome}</div>
+            <div style="font-size:11px;color:var(--texto3);font-family:var(--mono)">${L}×${A}mm</div></div>
+          <button class="btn btn-sm ${at?'btn-perigo':'btn-secundario'}" onclick="optTogPP('${p.id}')">${at?'Remover':'+ Incluir'}</button>
+        </div>
       </div>`;
     }).join('');
+  }
+  const ob=document.getElementById('opt-body');if(ob)ob.innerHTML=h;
 }
 
-function pcpSugerirChapa(g){
-  const d=g.d,esp=d.match(/(\d+\+?\d*mm)/)?.[1]||'',cor=d.match(/(Incolor|Fume|Verde|Bronze|Refletivo)/)?.[1]||'Incolor';
-  const tipo=d.includes('Laminado')?'Vidro Laminado':'Vidro Comum';
-  const disp=PCP.estoque.filter(m=>m.tipo===tipo&&m.espessura===esp&&m.cor===cor&&m.saldo>0).sort((a,b)=>b.larg_mm*b.alt_mm-a.larg_mm*a.alt_mm);
-  if(disp.length){const b=disp[0],ac=(b.larg_mm/1000)*(b.alt_mm/1000),n=Math.ceil(g.area/ac/0.85),ap=Math.min(99,Math.round(g.area/(n*ac)*100));return{ok:true,mp:b,n:Math.min(n,b.saldo),ap};}
-  const alt=PCP.estoque.filter(m=>m.tipo===tipo&&m.saldo>0).sort((a,b)=>b.larg_mm*b.alt_mm-a.larg_mm*a.alt_mm)[0];
-  if(alt) return{ok:false,alt:`${alt.espessura} ${alt.cor} ${alt.larg_mm}x${alt.alt_mm}mm (${alt.saldo})`,mp:alt};
-  return{ok:false,buy:`${esp} ${cor} ${tipo}`,mp:null};
+function optTogOP(id){OPT.opsSel.has(id)?OPT.opsSel.delete(id):OPT.opsSel.add(id);optR1();}
+function optTogPP(id){
+  const p=(PCP.pp||[]).find(x=>x.id===id);if(!p)return;
+  OPT.ppAtivos.some(x=>x.id===id)?OPT.ppAtivos=OPT.ppAtivos.filter(x=>x.id!==id):OPT.ppAtivos.push(p);
+  optR1();
 }
 
-function pcpGerarPlano(enc){
-  const d=decodeURIComponent(enc),op=PCP.optOP;
-  const itens=(op.itens||[]).filter(i=>i.descricao===d);
-  const g={d,itens,area:itens.reduce((s,i)=>s+(i.area||0)*(i.qty||1),0)};
-  const sug=pcpSugerirChapa(g); if(!sug.mp){alert('Nenhuma chapa disponivel.');return;}
-  const pecas=[];
-  itens.forEach(it=>{for(let q=0;q<(it.qty||1);q++)pecas.push({id:it.id+'_'+q,L:it.l_r||it.larg,A:it.a_r||it.alt,d:`${it.larg}x${it.alt}`});});
-  PCP.optPP.forEach(pp=>pecas.push({id:'pp'+pp.id,L:pp.larg_mm,A:pp.alt_mm,d:pp.descricao,p:true}));
-  const plano=pcpCalcPlano(pecas,sug.mp.larg_mm,sug.mp.alt_mm);
-  pcpMostrarPlano(plano,sug.mp);
+// ── STEP 2: Chapas ranqueadas ─────────────────────────────────────────
+function optIrChapas(){
+  const {tipo,esp,cor}=OPT.mp;const lap=OPT.lap?3:0;
+  OPT.pecas=[];
+  if(OPT.modo==='auto'){
+    const ops=OPT.opsDisp.filter(o=>OPT.opsSel.has(o.id));
+    ops.forEach((op,oi)=>{
+      (op.itens||[]).filter(it=>(it.descricao||'').includes(esp)).forEach(it=>{
+        const qty=it.qty||1,L=(it.larg||it.l_r||0)+lap,A=(it.alt||it.a_r||0)+lap;
+        for(let q=0;q<qty;q++) OPT.pecas.push({id:`${it.id}_${q}`,baseId:`${it.id}`,opId:op.id,opNum:op.op_numero||op.id,cliente:op.cliente||'',l:L,a:A,lo:it.larg||it.l_r||0,ao:it.alt||it.a_r||0,cor:OPT_CORES[oi%OPT_CORES.length]});
+      });
+    });
+  } else {
+    OPT.pecasManuais.filter(p=>p.l>0&&p.a>0&&p.q>0).forEach((p,pi)=>{
+      for(let q=0;q<p.q;q++) OPT.pecas.push({id:`m${pi}_${q}`,baseId:`m${pi}`,opId:`M${pi+1}`,opNum:`Lote ${pi+1}`,cliente:'Manual',l:p.l+lap,a:p.a+lap,lo:p.l,ao:p.a,cor:OPT_CORES[pi%OPT_CORES.length]});
+    });
+  }
+  OPT.ppAtivos.forEach(p=>{
+    const L=(p.larg_mm||p.l||0)+lap,A=(p.alt_mm||p.a||0)+lap;
+    OPT.pecas.push({id:'pp_'+p.id,baseId:'pp_'+p.id,opId:'pp',opNum:'PP',cliente:'Peça padrão',l:L,a:A,lo:p.larg_mm||p.l||0,ao:p.alt_mm||p.a||0,cor:'#888',isPP:true});
+  });
+
+  const estoqueRef=PCP.estoque&&PCP.estoque.length?PCP.estoque:[];
+  const chapasMP=estoqueRef.filter(m=>m.tipo===tipo&&m.espessura===esp&&(m.cor||'Incolor')===cor);
+  const comS=chapasMP.filter(m=>(m.saldo||0)>0).map(m=>{
+    const ch=optCalcMixSingle(OPT.pecas,{l:m.larg_mm||m.l||0,a:m.alt_mm||m.a||0});
+    const ap=ch.placed.length?Math.round(ch.placed.reduce((s,p)=>s+p.l*p.a,0)/((m.larg_mm||m.l||0)*(m.alt_mm||m.a||0))*100):0;
+    return{...m,nc:ch.chapas||1,ap,ok:true};
+  }).sort((a,b)=>b.ap-a.ap);
+  const semS=chapasMP.filter(m=>!(m.saldo>0));
+  OPT._chapasData={comS,semS};
+  OPT.step=2;
+  const s=document.getElementById('opt-sub');if(s)s.textContent=`${esp} ${cor} · selecione o tamanho`;
+  const pp=document.getElementById('opt-btn-pp');if(pp)pp.style.display='inline-flex';
+  optR2();
 }
 
-function pcpCalcPlano(pecas,cL,cA){
-  const s=[...pecas].sort((a,b)=>b.L*b.A-a.L*a.A),chapas=[];
-  s.forEach(p=>{let ok=false;for(const c of chapas){const pos=pcpAchPos(c.oc,p.L,p.A,cL,cA);if(pos){c.ps.push({...p,...pos});c.oc.push({x:pos.x,y:pos.y,L:p.L,A:p.A});ok=true;break;}}if(!ok)chapas.push({ps:[{...p,x:0,y:0}],oc:[{x:0,y:0,L:p.L,A:p.A}]});});
-  chapas.forEach(c=>{const aOc=c.ps.reduce((s,p)=>s+p.L*p.A,0);c.ap=Math.round(aOc/(cL*cA)*100);});
-  return{chapas,cL,cA};
-}
-function pcpAchPos(oc,pL,pA,cL,cA){for(let y=0;y<=cA-pA;y+=50)for(let x=0;x<=cL-pL;x+=50)if(!pcpColide(oc,x,y,pL,pA))return{x,y};return null;}
-function pcpColide(oc,x,y,pL,pA){for(const o of oc)if(x<o.x+o.L&&x+pL>o.x&&y<o.y+o.A&&y+pA>o.y)return true;return false;}
-
-function pcpMostrarPlano(plano,mp){
-  document.getElementById('pcp-optmax-plano').style.display='block';
-  const sc=180/Math.max(plano.cL,plano.cA),W=Math.round(plano.cL*sc),H=Math.round(plano.cA*sc);
-  const CORES=['#0F2547','#2D6A4F','#854F0B','#7C3AED','#B45309','#0369A1'];
-  const atdId = PCP.optOP?.id||'';
-  const lotes = PCP.estoque.find(m=>m.id===mp.id)?.lotes||[];
-  const loteInfo = lotes.length ? `Lote: ${lotes[lotes.length-1]}` : 'Sem lote registrado';
-  document.getElementById('pcp-optmax-plano-wrap').innerHTML=
-    `<div class="alerta alerta-info"><strong>${plano.chapas.length} chapa(s)</strong> de ${mp.larg_mm}x${mp.alt_mm}mm (${mp.espessura} ${mp.cor}) · ${loteInfo}</div>`
-    +plano.chapas.map((c,ci)=>`<div class="card"><div style="font-size:12px;font-weight:600;color:var(--azul);margin-bottom:8px">Chapa ${ci+1} · ${c.ap}% aproveitamento</div><div class="pcp-plano-grid" style="width:${W}px;height:${H}px">${c.ps.map((p,pi)=>{const px=Math.round(p.x*sc),py=Math.round(p.y*sc),pw=Math.round(p.L*sc)-1,ph=Math.round(p.A*sc)-1,cor=CORES[pi%CORES.length];return`<div class="pcp-plano-peca" style="left:${px}px;top:${py}px;width:${pw}px;height:${ph}px;border-color:${cor};background:${cor}22">${p.d}${p.p?'*':''}</div>`;}).join('')}</div><div style="font-size:10px;color:var(--texto3);margin-top:4px">* peca padrao</div></div>`).join('')
-    +`<button class="btn btn-verde btn-sm" style="width:100%;height:44px;margin-top:4px" onclick="pcpConfirmarPlano('${atdId}',${mp.id},${plano.chapas.length},'${lotes[lotes.length-1]||''}')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-        Confirmar plano · empenhar ${plano.chapas.length} chapa(s)
-      </button>`;
+// Simulação rápida para ranquear chapas
+function optCalcMixSingle(pecas,mp){
+  const r=optGuillotine(pecas,{x:0,y:0,w:mp.l,a:mp.a},0);
+  return{placed:r.placed,chapas:1};
 }
 
-async function pcpConfirmarPlano(atdId, mpId, qtd, lote){
-  await pcpEmpenharChapas(atdId, mpId, qtd, lote);
-  // Atualizar status da OP para producao
-  try {
-    await supa.from('atendimentos').update({status:'producao'}).eq('id', atdId);
-    const op = PCP.ops.find(a=>a.id===atdId);
-    if(op) op.status='producao';
-    // Sincroniza S.atendimentos imediatamente — operador vê status producao sem esperar sync
-    if(S.atendimentos[atdId]) S.atendimentos[atdId].status = 'producao';
-    renderFilaProducao();
-    pcpRenderOps(); pcpPopularSels();
-  } catch(e){ console.warn('pcpConfirmarPlano:', e); }
-  document.getElementById('pcp-optmax-plano-wrap').innerHTML +=
-    `<div class="alerta alerta-ok" style="margin-top:8px">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>
-      Plano confirmado · chapas empenhadas · OP em producao
+function optR2(){
+  const {comS,semS}=OPT._chapasData;
+  const {esp,cor}=OPT.mp;const pcs=OPT.pecas.length;
+  const area=OPT.pecas.reduce((s,p)=>s+p.lo*p.ao/1e6,0);
+
+  let h=`<div class="card"><div class="card-titulo">Lote</div>
+    <div style="display:flex">
+      <div style="flex:1;text-align:center"><div style="font-size:24px;font-weight:500;color:var(--azul)">${OPT.opsSel.size||1}</div><div style="font-size:10px;color:var(--texto3)">${OPT.modo==='auto'?'OPs':'lotes'}</div></div>
+      <div style="flex:1;text-align:center"><div style="font-size:24px;font-weight:500;color:var(--azul)">${pcs}</div><div style="font-size:10px;color:var(--texto3)">peças</div></div>
+      <div style="flex:1;text-align:center"><div style="font-size:24px;font-weight:500;color:var(--azul)">${area.toFixed(2)}</div><div style="font-size:10px;color:var(--texto3)">m²</div></div>
+    </div>
+    ${OPT.lap?'<div class="alerta alerta-info" style="margin-top:10px;margin-bottom:0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Lapidado ativo — +1,5 mm por lado</div>':''}
+  </div>`;
+
+  if(comS.length){
+    h+=`<p class="sec-label">Tamanhos em estoque · ranqueados por aproveitamento</p>`;
+    h+=comS.map((m,i)=>{
+      const bC=m.ap>=80?'var(--verde)':m.ap>=60?'var(--amarelo)':'var(--vermelho)';
+      const bgC=m.ap>=80?'var(--verde-bg)':m.ap>=60?'var(--amarelo-bg)':'var(--vermelho-bg)';
+      const best=i===0?`<span style="font-size:9px;background:var(--verde);color:#fff;padding:1px 6px;border-radius:4px;font-weight:600;margin-left:6px">MELHOR</span>`:'';
+      const L=m.larg_mm||m.l||0,A=m.alt_mm||m.a||0;
+      return `<div class="card" style="margin-bottom:8px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+          <div><div style="font-size:14px;font-weight:500">${L} × ${A} mm${best}</div>
+            <div style="font-size:11px;color:var(--texto3);margin-top:1px">${m.espessura||esp} · ${m.cor||cor}${m.lotes?.length?' · '+m.lotes[0]:m.cod_lote?' · '+m.cod_lote:''}</div></div>
+          <div style="text-align:right;margin-left:10px">
+            <div style="font-size:26px;font-weight:500;color:var(--azul);line-height:1">${m.saldo}</div>
+            <div style="font-size:10px;color:var(--texto3)">chapas</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <div style="flex:1;height:6px;border-radius:3px;overflow:hidden;background:rgba(0,0,0,.07)"><div style="height:100%;width:${m.ap}%;background:${bC};border-radius:3px"></div></div>
+          <span style="font-size:11px;font-weight:500;color:${bC}">${m.ap}% aproveit.</span>
+        </div>
+        <button class="btn btn-primario btn-sm" style="width:100%;height:40px" onclick="optGerarPlano('${m.id}')">Gerar plano de corte →</button>
+      </div>`;
+    }).join('');
+  }
+
+  if(semS.length){
+    h+=`<p class="sec-label">Sem saldo · tamanhos cadastrados</p>`;
+    h+=semS.map(m=>{
+      const L=m.larg_mm||m.l||0,A=m.alt_mm||m.a||0;
+      return `<div class="card" style="border-color:var(--amarelo);margin-bottom:8px">
+        <div class="alerta alerta-warn" style="margin-bottom:10px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Sem estoque · aguardando entrada de NF</div>
+        <div style="font-size:14px;font-weight:500">${L} × ${A} mm</div>
+        <div style="font-size:11px;color:var(--texto2);margin-top:2px;margin-bottom:10px">${m.espessura||esp} · ${m.cor||cor}</div>
+        <button class="btn btn-secundario btn-sm" style="width:100%;height:40px" onclick="pcpAbrirEntradaMP('${m.id}')">+ Registrar entrada de NF</button>
+      </div>`;
+    }).join('');
+  }
+
+  if(!comS.length&&!semS.length){
+    h+=`<div class="alerta alerta-warn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>${esp} ${cor} não encontrado no estoque. Cadastre o material.</div>`;
+  }
+
+  // Peças padrão
+  const ppList=(PCP.pp||[]).filter(p=>(p.espessura||p.esp||'')===esp);
+  if(ppList.length){
+    h+=`<p class="sec-label" id="opt-sec-pp">Peças padrão · ${esp}</p>`;
+    h+=ppList.map(p=>{
+      const at=OPT.ppAtivos.some(x=>x.id===p.id);
+      const nome=p.descricao||p.nome||'PP';const L=p.larg_mm||p.l||0,A=p.alt_mm||p.a||0;
+      return `<div class="card" style="margin-bottom:8px;${at?'border-color:var(--azul);background:var(--azul-bg)':''}">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div><div style="font-size:13px;font-weight:500">${nome}</div>
+            <div style="font-size:11px;color:var(--texto3);font-family:var(--mono)">${L}×${A}mm</div></div>
+          <button class="btn btn-sm ${at?'btn-perigo':'btn-secundario'}" onclick="optTogPP('${p.id}')">${at?'Remover':'+ Incluir'}</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  const ob=document.getElementById('opt-body');if(ob)ob.innerHTML=h;
+}
+
+// ── STEP 3: Plano com mix ─────────────────────────────────────────────
+function optGerarPlano(mpId){
+  OPT.forcedRot={};
+  const estoqueRef=PCP.estoque&&PCP.estoque.length?PCP.estoque:[];
+  const mp=estoqueRef.find(m=>m.id===mpId);if(!mp)return;
+  OPT._mpSel=mp;
+  const chapasDisp=estoqueRef.filter(m=>m.tipo===mp.tipo&&m.espessura===mp.espessura&&(m.cor||'Incolor')===(mp.cor||'Incolor')&&(m.saldo||0)>0);
+  const res=optCalcMix(OPT.pecas,chapasDisp);
+  const mixU={};res.chapas.forEach(c=>{const k=c.mp.id;if(!mixU[k])mixU[k]={mp:c.mp,n:0};mixU[k].n++;});
+  OPT.resultado={chapas:res.chapas,restantes:res.restantes,mixUsado:Object.values(mixU)};
+  OPT.step=3;
+  const t=document.getElementById('opt-tit'),s=document.getElementById('opt-sub'),pp=document.getElementById('opt-btn-pp');
+  const L=mp.larg_mm||mp.l||0,A=mp.alt_mm||mp.a||0;
+  if(t)t.textContent='Plano de corte';if(s)s.textContent=`${L}×${A}mm · mix otimizado`;if(pp)pp.style.display='none';
+  optR3();
+}
+
+// ── Motor Guillotine Recursivo + Beam Search ──────────────────────────
+function optGuillotine(pieces,rect,depth){
+  if(!pieces.length||depth>28)return{placed:[],area:0};
+  const cands=pieces.slice(0,OPT_BEAM_W);let best={placed:[],area:0};
+  for(const p of cands){
+    for(const rot of[false,true]){
+      const fr=OPT.forcedRot[p.baseId];
+      const useRot=fr!==undefined?fr:rot;
+      const pw=useRot?p.a:p.l,ph=useRot?p.l:p.a;
+      if(pw>rect.w||ph>rect.a)continue;
+      const placed=[{...p,x:rect.x,y:rect.y,pw,ph,rot:useRot}];
+      const rem=pieces.filter(x=>x.id!==p.id);
+      for(const[r1,r2]of[
+        [{x:rect.x+pw,y:rect.y,w:rect.w-pw,a:ph},{x:rect.x,y:rect.y+ph,w:rect.w,a:rect.a-ph}],
+        [{x:rect.x,y:rect.y+ph,w:pw,a:rect.a-ph},{x:rect.x+pw,y:rect.y,w:rect.w-pw,a:rect.a}]
+      ]){
+        const res1=r1.w>0&&r1.a>0?optGuillotine(optSortA(rem),r1,depth+1):{placed:[],area:0};
+        const u1=new Set(res1.placed.map(x=>x.id));
+        const res2=r2.w>0&&r2.a>0?optGuillotine(optSortA(rem.filter(x=>!u1.has(x.id))),r2,depth+1):{placed:[],area:0};
+        const all=[...placed,...res1.placed,...res2.placed];
+        const area=all.reduce((s,x)=>s+x.pw*x.ph,0);
+        if(area>best.area)best={placed:all,area};
+      }
+      if(fr!==undefined)break;
+    }
+  }
+  return best;
+}
+
+function optSortA(p){return[...p].sort((a,b)=>b.l*b.a-a.l*a.a);}
+
+function optCalcRetalhos(placed,W,H){
+  const res=[];if(!placed.length)return[];
+  const maxY=Math.max(...placed.map(p=>p.y+p.ph));
+  if(H-maxY>=OPT_MIN_RESTO&&W>=OPT_MIN_RESTO)res.push({x:0,y:maxY,w:W,h:H-maxY});
+  const maxX=Math.max(...placed.map(p=>p.x+p.pw));
+  if(W-maxX>=OPT_MIN_RESTO){
+    const ph=Math.min(...placed.filter(p=>p.x+p.pw>=maxX-1).map(p=>p.ph));
+    if(ph>=OPT_MIN_RESTO)res.push({x:maxX,y:0,w:W-maxX,h:ph});
+  }
+  return res.filter(r=>r.w>=OPT_MIN_RESTO&&r.h>=OPT_MIN_RESTO);
+}
+
+function optCalcMix(allPecas,chapasDisp){
+  const saldos={};chapasDisp.forEach(m=>{saldos[m.id]=m.saldo||0;});
+  let rem=optSortA([...allPecas]);const chapasUsadas=[];let safe=0;
+  while(rem.length>0&&safe++<80){
+    let bestM=null,bestR=null,bestS=-1;
+    chapasDisp.filter(m=>saldos[m.id]>0).forEach(m=>{
+      const L=m.larg_mm||m.l||0,A=m.alt_mm||m.a||0;
+      const r=optGuillotine(rem,{x:0,y:0,w:L,a:A},0);
+      if(!r.placed.length)return;
+      const score=(r.area/(L*A))*0.7+(r.placed.length/rem.length)*0.3;
+      if(score>bestS){bestS=score;bestM=m;bestR=r;}
+    });
+    if(!bestM||!bestR?.placed.length)break;
+    saldos[bestM.id]--;
+    const L=bestM.larg_mm||bestM.l||0,A=bestM.alt_mm||bestM.a||0;
+    const ap=Math.round(bestR.area/(L*A)*100);
+    const restos=optCalcRetalhos(bestR.placed,L,A);
+    chapasUsadas.push({mp:bestM,placed:bestR.placed,ap,restos});
+    const col=new Set(bestR.placed.map(p=>p.id));
+    rem=optSortA(rem.filter(p=>!col.has(p.id)));
+  }
+  return{chapas:chapasUsadas,restantes:rem};
+}
+
+// ── Rotação manual ────────────────────────────────────────────────────
+function optRotarPeca(baseId){
+  let rotAtual=false;
+  OPT.resultado.chapas.forEach(ch=>{ch.placed.forEach(p=>{if(p.baseId===baseId)rotAtual=p.rot;});});
+  OPT.forcedRot[baseId]=!rotAtual;
+  const estoqueRef=PCP.estoque&&PCP.estoque.length?PCP.estoque:[];
+  const chapasDisp=estoqueRef.filter(m=>m.tipo===OPT._mpSel.tipo&&m.espessura===OPT._mpSel.espessura&&(m.saldo||0)>0);
+  const res=optCalcMix(OPT.pecas,chapasDisp);
+  const mixU={};res.chapas.forEach(c=>{const k=c.mp.id;if(!mixU[k])mixU[k]={mp:c.mp,n:0};mixU[k].n++;});
+  OPT.resultado={chapas:res.chapas,restantes:res.restantes,mixUsado:Object.values(mixU)};
+  optR3();
+}
+
+// ── Renderizar plano ──────────────────────────────────────────────────
+function optR3(){
+  const {chapas,restantes,mixUsado}=OPT.resultado;
+  const n=chapas.length,apMed=n?Math.round(chapas.reduce((s,c)=>s+c.ap,0)/n):0;
+  const colocadas=OPT.pecas.length-restantes.length;
+  const ops=[...new Map(OPT.pecas.filter(p=>p.opId!=='pp').map(p=>[p.opId,{num:p.opNum,cliente:p.cliente,cor:p.cor}])).values()];
+
+  let h=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-size:11px;font-weight:500;color:var(--texto2);text-transform:uppercase;letter-spacing:.06em">Resultado</span>
+      <span style="font-size:9px;background:var(--azul-bg);color:#0C447C;padding:2px 7px;border-radius:4px;font-weight:600">Guillotine Recursivo + Beam Search</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px">
+      <div style="text-align:center"><div style="font-size:22px;font-weight:500;color:var(--azul)">${n}</div><div style="font-size:9px;color:var(--texto3)">chapas</div></div>
+      <div style="text-align:center"><div style="font-size:22px;font-weight:500;color:${apMed>=80?'var(--verde)':apMed>=60?'var(--amarelo)':'var(--vermelho)'}">${apMed}%</div><div style="font-size:9px;color:var(--texto3)">aproveit.</div></div>
+      <div style="text-align:center"><div style="font-size:22px;font-weight:500;color:var(--verde)">${colocadas}</div><div style="font-size:9px;color:var(--texto3)">colocadas</div></div>
+      <div style="text-align:center"><div style="font-size:22px;font-weight:500;color:${restantes.length?'var(--vermelho)':'var(--verde)'}">${restantes.length}</div><div style="font-size:9px;color:var(--texto3)">sem chapa</div></div>
     </div>`;
+
+  if(mixUsado.length){
+    h+=`<div style="border-top:.5px solid var(--borda);padding-top:10px;margin-bottom:10px">
+      <div style="font-size:10px;font-weight:500;color:var(--texto3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em">Mix utilizado</div>`;
+    h+=mixUsado.map(m=>{const L=m.mp.larg_mm||m.mp.l||0,A=m.mp.alt_mm||m.mp.a||0;const lote=m.mp.lotes?.[0]||m.mp.cod_lote||'';
+      return `<div style="display:flex;justify-content:space-between;padding:3px 0">
+        <span style="font-size:12px">${L}×${A}mm${lote?` <span style="color:var(--texto3);font-size:10px">${lote}</span>`:''}</span>
+        <span style="font-size:12px;font-weight:500;color:var(--azul)">${m.n}×</span>
+      </div>`;
+    }).join('');
+    h+=`</div>`;
+  }
+
+  h+=`<div style="font-size:10px;font-weight:500;color:var(--texto3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em">Legenda</div>`;
+  h+=ops.map(o=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+    <div style="width:12px;height:12px;border-radius:2px;background:${o.cor};flex-shrink:0"></div>
+    <span style="font-size:11px;font-family:var(--mono);font-weight:500">${o.num}</span>
+    <span style="font-size:11px;color:var(--texto2)">· ${o.cliente}</span>
+  </div>`).join('');
+  if(OPT.ppAtivos.length)h+=`<div style="display:flex;align-items:center;gap:6px;margin-top:2px"><div style="width:12px;height:12px;border-radius:2px;background:#888;flex-shrink:0"></div><span style="font-size:11px;color:var(--texto2)">Peças padrão</span></div>`;
+
+  if(restantes.length)h+=`<div class="alerta alerta-erro" style="margin-top:10px;margin-bottom:0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>${restantes.length} peça(s) não alocada(s) — saldo de chapas insuficiente</div>`;
+  h+=`</div>`;
+
+  h+=`<div class="alerta alerta-info"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>Toque em <strong>↻</strong> sobre qualquer peça para girar 90° e recalcular</div>`;
+
+  h+=`<p class="sec-label">Plano de corte · ${n} chapa(s)</p>`;
+  h+=chapas.map((ch,ci)=>{
+    const mp=ch.mp;const L=mp.larg_mm||mp.l||0,A=mp.alt_mm||mp.a||0;
+    const maxW=370;const sc=maxW/L;const H=Math.round(A*sc);
+    const bC=ch.ap>=80?'var(--verde)':ch.ap>=60?'var(--amarelo)':'var(--vermelho)';
+    const bgC=ch.ap>=80?'var(--verde-bg)':ch.ap>=60?'var(--amarelo-bg)':'var(--vermelho-bg)';
+    const opsNa=[...new Set(ch.placed.filter(p=>!p.isPP).map(p=>p.opNum))];
+    const lote=mp.lotes?.[0]||mp.cod_lote||'';
+
+    const svgPcs=ch.placed.map(p=>{
+      const x=Math.round(p.x*sc),y=Math.round(p.y*sc);
+      const pw=Math.max(2,Math.round(p.pw*sc)-1),ph=Math.max(2,Math.round(p.ph*sc)-1);
+      const fs1=Math.min(9,Math.max(5,Math.round(Math.min(pw,ph)/4)));
+      const fs2=Math.min(7,Math.max(4,Math.round(Math.min(pw,ph)/6)));
+      const cy=y+ph/2;const show2=ph>fs1*3.2;
+      const lbl1=p.isPP?'★PP':p.opNum;
+      const lbl2=`${p.lo}×${p.ao}${p.rot?'↻':''}`;
+      const canRot=pw>=16&&ph>=16&&!p.isPP;
+      const bx=x+pw-10,by=y+3;
+      return `<rect x="${x}" y="${y}" width="${pw}" height="${ph}" fill="${p.cor}18" stroke="${p.cor}" stroke-width="1.2" rx="1"/>
+        ${show2
+          ?`<text x="${x+pw/2}" y="${cy-fs1*0.7}" text-anchor="middle" dominant-baseline="middle" fill="${p.cor}" font-size="${fs1}" font-family="monospace" font-weight="700">${lbl1}</text>
+             <text x="${x+pw/2}" y="${cy+fs2*0.9}" text-anchor="middle" dominant-baseline="middle" fill="${p.cor}" font-size="${fs2}" font-family="monospace">${lbl2}</text>`
+          :`<text x="${x+pw/2}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="${p.cor}" font-size="${fs1}" font-family="monospace" font-weight="700">${lbl1}</text>`
+        }
+        ${canRot?`<circle cx="${bx}" cy="${by+6}" r="7" fill="rgba(255,255,255,.92)" stroke="${p.cor}" stroke-width=".8" style="cursor:pointer" onclick="optRotarPeca('${p.baseId}')"/>
+          <text x="${bx}" y="${by+6}" text-anchor="middle" dominant-baseline="middle" fill="${p.cor}" font-size="8" font-family="sans-serif" style="cursor:pointer;user-select:none" onclick="optRotarPeca('${p.baseId}')">↻</text>`:''}`;
+    }).join('');
+
+    const svgR=ch.restos.map(r=>{
+      const x=Math.round(r.x*sc),y=Math.round(r.y*sc);
+      const rw=Math.max(1,Math.round(r.w*sc)-1),rh=Math.max(1,Math.round(r.h*sc)-1);
+      return `<rect x="${x}" y="${y}" width="${rw}" height="${rh}" fill="rgba(0,0,0,.02)" stroke="rgba(0,0,0,.07)" stroke-width=".5" stroke-dasharray="3,2"/>
+              <text x="${x+rw/2}" y="${y+rh/2}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,.2)" font-size="6" font-family="monospace">retalho ${Math.round(r.w)}×${Math.round(r.h)}</text>`;
+    }).join('');
+
+    return `<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div>
+          <span style="font-size:13px;font-weight:500;color:var(--azul)">Chapa ${ci+1}</span>
+          <span style="font-size:11px;color:var(--texto3);margin-left:6px">${L}×${A}mm${lote?' · '+lote:''}</span>
+        </div>
+        <span style="font-size:11px;background:${bgC};color:${bC};padding:2px 8px;border-radius:5px;font-weight:500">${ch.ap}%</span>
+      </div>
+      <svg width="${maxW}" height="${H}" viewBox="0 0 ${maxW} ${H}" style="display:block;border:.5px solid var(--borda);border-radius:4px;background:#F8F7F3">
+        <rect width="${maxW}" height="${H}" fill="#F8F7F3"/>${svgPcs}${svgR}
+      </svg>
+      <div style="display:flex;justify-content:space-between;margin-top:5px">
+        <span style="font-size:10px;color:var(--texto3)">${ch.placed.length} peças · ${ch.restos.length} retalho(s)</span>
+        <span style="font-size:10px;color:var(--texto2);font-family:var(--mono)">${opsNa.join(' · ')}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  const canConf=restantes.length===0;
+  h+=`<div id="opt-confirm-area" style="padding-bottom:16px">
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn btn-secundario" style="flex:1;height:44px;font-size:13px" onclick="optExportDXF()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exportar DXF
+      </button>
+      <button class="btn ${canConf?'btn-verde':'btn-disabled'}" style="flex:2;height:44px;font-size:13px" ${canConf?'':'disabled'} onclick="optConfirmarPlano()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        ${canConf?`Confirmar · ${n} chapa(s)`:`${restantes.length} peça(s) sem chapa`}
+      </button>
+    </div>
+  </div>`;
+  const ob=document.getElementById('opt-body');if(ob)ob.innerHTML=h;
 }
 
-// Pecas padrao
-function pcpAbrirPP(){pcpRenderPPLista();const m=document.getElementById('pcp-modal-pp');if(m){m.style.display='flex';m.classList.add('aberto');}}
-function pcpRenderPPLista(){const el=document.getElementById('pcp-pp-lista-modal');if(!PCP.pp.length){el.innerHTML='<div style="text-align:center;padding:16px 0;color:var(--texto3);font-size:12px">Nenhuma peca padrao.</div>';return;}el.innerHTML=PCP.pp.map(p=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--borda)"><div><div style="font-size:12px;font-weight:500">${p.descricao}</div><div style="font-size:11px;color:var(--texto3)">${p.tipo} ${p.espessura} · ${p.larg_mm}x${p.alt_mm}mm</div></div><button class="btn btn-primario btn-sm" onclick="pcpInserirPP(${p.id})">Inserir</button></div>`).join('');}
-function pcpInserirPP(id){const p=PCP.pp.find(x=>x.id===id);if(p&&!PCP.optPP.find(x=>x.id===id))PCP.optPP.push(p);fecharModal('pcp-modal-pp');if(PCP.optOP)pcpRenderOptGrupos();}
-async function pcpSalvarPP(){const d=document.getElementById('pcp-pp-desc').value.trim(),t=document.getElementById('pcp-pp-tipo').value,e=document.getElementById('pcp-pp-esp').value.trim(),c=document.getElementById('pcp-pp-cor').value,L=parseInt(document.getElementById('pcp-pp-larg').value)||0,A=parseInt(document.getElementById('pcp-pp-alt').value)||0;if(!d||!t||!e||!c||!L||!A){alert('Preencha todos os campos.');return;}try{const{data}=await supa.from('pecas_padrao').insert({descricao:d,tipo:t,espessura:e,cor:c,larg_mm:L,alt_mm:A,criado_por:S.vendedor?.id}).select().single();PCP.pp.push(data);}catch(err){PCP.pp.push({id:Date.now(),descricao:d,tipo:t,espessura:e,cor:c,larg_mm:L,alt_mm:A});}['pcp-pp-desc','pcp-pp-esp','pcp-pp-larg','pcp-pp-alt'].forEach(id=>document.getElementById(id).value='');pcpRenderPPLista();}
+// ── Exportar DXF ──────────────────────────────────────────────────────
+function optExportDXF(){
+  const {chapas}=OPT.resultado;if(!chapas.length){alert('Nenhum plano para exportar.');return;}
+  const {esp,cor}=OPT.mp;const ts=new Date().toISOString().slice(0,10);
+  let dxf=`  0\nSECTION\n  2\nHEADER\n  9\n$ACADVER\n  1\nAC1009\n  9\n$INSUNITS\n 70\n4\n  9\n$MEASUREMENT\n 70\n1\n  0\nENDSEC\n`;
+  dxf+=`  0\nSECTION\n  2\nTABLES\n  0\nTABLE\n  2\nLAYER\n 70\n20\n`;
+  dxf+=`  0\nLAYER\n  2\n0\n 70\n0\n 62\n7\n  6\nCONTINUOUS\n`;
+  dxf+=`  0\nLAYER\n  2\nCHAPAS\n 70\n0\n 62\n3\n  6\nCONTINUOUS\n`;
+  dxf+=`  0\nLAYER\n  2\nRESTOS\n 70\n0\n 62\n8\n  6\nDASHED\n`;
+  const opsL=[...new Set(chapas.flatMap(ch=>ch.placed.filter(p=>!p.isPP).map(p=>p.opNum)))];
+  opsL.forEach((op,i)=>{dxf+=`  0\nLAYER\n  2\n${op}\n 70\n0\n 62\n${i+1}\n  6\nCONTINUOUS\n`;});
+  dxf+=`  0\nENDTAB\n  0\nENDSEC\n  0\nSECTION\n  2\nENTITIES\n`;
+  chapas.forEach((ch,ci)=>{
+    const mp=ch.mp;const L=mp.larg_mm||mp.l||0,A=mp.alt_mm||mp.a||0;
+    const OX=ci*(L+200),OY=0;
+    dxf+=optDxfRect(OX,OY,L,A,'CHAPAS');
+    dxf+=optDxfText(OX+10,OY+A-40,`Chapa ${ci+1} · ${L}x${A}mm · ${mp.espessura||esp} ${mp.cor||cor}${mp.lotes?.[0]?' · '+mp.lotes[0]:''}`,20,'CHAPAS');
+    ch.placed.forEach(p=>{
+      const layer=p.isPP?'0':p.opNum;
+      dxf+=optDxfRect(OX+p.x,OY+p.y,p.pw,p.ph,layer);
+      dxf+=optDxfText(OX+p.x+p.pw/2-(p.opNum.length*4),OY+p.y+p.ph/2+6,p.opNum,8,layer);
+      dxf+=optDxfText(OX+p.x+p.pw/2-((p.lo+'x'+p.ao).length*3),OY+p.y+p.ph/2-6,`${p.lo}x${p.ao}${p.rot?'R':''}`,6,layer);
+    });
+    ch.restos.forEach(r=>{
+      dxf+=optDxfRect(OX+r.x,OY+r.y,r.w,r.h,'RESTOS');
+      dxf+=optDxfText(OX+r.x+10,OY+r.y+r.h/2,`retalho ${Math.round(r.w)}x${Math.round(r.h)}`,6,'RESTOS');
+    });
+  });
+  dxf+=`  0\nENDSEC\n  0\nEOF\n`;
+  const blob=new Blob([dxf],{type:'text/plain'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`OptMAX_${esp}_${ts}.dxf`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+  const ca=document.getElementById('opt-confirm-area');
+  if(ca){const d=document.createElement('div');d.className='alerta alerta-ok';d.style.marginBottom='10px';
+    d.innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>DXF exportado · ${chapas.length} chapa(s) · compatível com OptyWay / Bottero / Lisec`;
+    ca.insertBefore(d,ca.firstChild);}
+}
+function optDxfRect(x,y,w,h,l){return `  0\nLWPOLYLINE\n  8\n${l}\n 70\n1\n 90\n4\n 10\n${x.toFixed(3)}\n 20\n${y.toFixed(3)}\n 10\n${(x+w).toFixed(3)}\n 20\n${y.toFixed(3)}\n 10\n${(x+w).toFixed(3)}\n 20\n${(y+h).toFixed(3)}\n 10\n${x.toFixed(3)}\n 20\n${(y+h).toFixed(3)}\n`;}
+function optDxfText(x,y,t,h,l){return `  0\nTEXT\n  8\n${l}\n 10\n${x.toFixed(3)}\n 20\n${y.toFixed(3)}\n 30\n0.0\n 40\n${h}\n  1\n${t}\n`;}
+
+// ── Confirmar plano ───────────────────────────────────────────────────
+async function optConfirmarPlano(){
+  const {chapas,mixUsado}=OPT.resultado;
+  // 1. Empenhar chapas no Supabase
+  try{
+    for(const m of mixUsado){
+      const mp=m.mp;
+      await supa.from('empenhos').insert({
+        mp_id:mp.id,qty_chapas:m.n,status:'empenhado',
+        criado_por:S.vendedor?.id||null
+      });
+    }
+  }catch(e){console.warn('optConfirmarPlano empenho:', e);}
+
+  // 2. Atualizar status das OPs para producao
+  if(OPT.modo==='auto'){
+    const opsIds=[...OPT.opsSel];
+    for(const id of opsIds){
+      if(S.atendimentos[id]) S.atendimentos[id].status='producao';
+      const op=PCP.ops.find(a=>a.id===id);if(op)op.status='producao';
+      try{ await supa.from('atendimentos').update({status:'producao'}).eq('id',id); }catch(e){console.warn('optConfirmarPlano status:',e);}
+    }
+    renderFilaProducao();
+    pcpRenderOps();
+    pcpPopularSels();
+  }
+
+  // 3. Feedback
+  const ca=document.getElementById('opt-confirm-area');
+  if(ca){
+    const d=document.createElement('div');d.className='alerta alerta-ok';d.style.marginBottom='10px';
+    d.innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>
+      Plano confirmado · ${chapas.length} chapa(s) empenhada(s) · ${OPT.opsSel.size||0} OP(s) em produção
+      <button onclick="optIniciar()" style="margin-left:8px;font-size:10px;color:#085041;background:none;border:.5px solid #5DCAA5;border-radius:5px;padding:2px 8px;cursor:pointer;font-family:var(--font)">Novo plano</button>`;
+    ca.innerHTML='';ca.appendChild(d);
+  }
+}
 
 // ── ETIQUETAS ──
 function pcpEtiqCarregar(){
