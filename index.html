@@ -2658,6 +2658,7 @@ async function fazerLogin(){
   } else if(usuario.perfil==='pcp'){
     destino='tela-pcp-estoque';
     setTimeout(()=>pcpCarregarDados(), 200);
+    if(S.perfil==='gestor'||S.perfil==='admin'||S.perfil==='pcp') setTimeout(_verificarUsoStorage, 3000);
   } else if(usuario.perfil==='operador'||usuario.perfil==='gestor'){
     destino='tela-producao';
     try{
@@ -2835,7 +2836,11 @@ async function confirmarEtapa(itemId){
   item.etapaAtual++;
   const expedido=item.etapaAtual>=etapas.length;
   if(atd.status==='pedido') atd.status='producao';
-  if(atd.itens.every(i=>i.etapaAtual>=(getEtapasItem(i).length))) atd.status='concluido';
+  if(atd.itens.every(i=>i.etapaAtual>=(getEtapasItem(i).length))){
+    atd.status='concluido';
+    // Limpar desenhos do Storage após 30s (dar tempo de qualquer sync terminar)
+    setTimeout(()=>_limparDesenhoStorage(S.atdApontamento),30000);
+  }
   const temOcorr=tipoOcorr||textoOcorr;
   registrarAtividade('producao',`${S.atdApontamento} · ${etapaConc} · ${nomeOp}${temOcorr?' ⚠ ocorrência':''}`);
 
@@ -3515,7 +3520,10 @@ async function syncDados(){
         prazoMaxDias:a.prazo_max_dias||null,
         op:a.op_numero?{numero:a.op_numero,efetivadoPor:a.op_efetivado_por,efetivadoEm:a.op_efetivado_em}:null,
         recusa:a.recusa_motivo?{motivo:a.recusa_motivo,recusadoPor:a.recusa_por,recusadoEm:a.recusa_em}:null,
-        desenhos:(a.desenhos||[]).map(d=>({dataUrl:d.data_url||null,nome:d.nome,tipo:d.tipo,adicionadoPor:d.adicionado_por,hora:d.hora}))
+        desenhos:(a.desenhos||[]).map(d=>({
+          dataUrl:d.storage_path?supa.storage.from('desenhos').getPublicUrl(d.storage_path).data.publicUrl:(d.data_url||null),
+          storagePath:d.storage_path||null,nome:d.nome,tipo:d.tipo,adicionadoPor:d.adicionado_por,hora:d.hora
+        }))
       };
     });
     // Atualizar UI da tela ativa
@@ -3633,7 +3641,8 @@ async function carregarDadosBD(usuario){
         op: a.op_numero ? { numero: a.op_numero, efetivadoPor: a.op_efetivado_por, efetivadoEm: a.op_efetivado_em } : null,
         recusa: a.recusa_motivo ? { motivo: a.recusa_motivo, recusadoPor: a.recusa_por, recusadoEm: a.recusa_em } : null,
         desenhos: (a.desenhos||[]).map(d=>({
-          dataUrl: d.data_url||null,
+          dataUrl: d.storage_path?supa.storage.from('desenhos').getPublicUrl(d.storage_path).data.publicUrl:(d.data_url||null),
+          storagePath: d.storage_path||null,
           nome: d.nome,
           tipo: d.tipo,
           adicionadoPor: d.adicionado_por,
@@ -3876,21 +3885,119 @@ function renderDesenhos(atdNum, gridId, badgeId, countId, contexto){
   }
 }
 
-function _processarArquivo(file, atdNum, gridId, badgeId, countId, contexto){
+// ── Compressão de imagem antes do upload ──────────────────────────
+// Reduz fotos de celular (~4MB) para ~300KB mantendo legibilidade
+function _comprimirImagem(file, maxW, maxH, qualidade){
+  return new Promise((resolve)=>{
+    if(!file.type.startsWith('image/')){resolve(file);return;}
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      let w=img.width,h=img.height;
+      if(w>maxW||h>maxH){const r=Math.min(maxW/w,maxH/h);w=Math.round(w*r);h=Math.round(h*r);}
+      const canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      canvas.toBlob(blob=>resolve(blob||file),'image/jpeg',qualidade);
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);resolve(file);};
+    img.src=url;
+  });
+}
+
+// ── Upload para Supabase Storage ──────────────────────────────────
+async function _uploadDesenho(file, atdNum){
+  const ext=file.name?.split('.').pop()||'jpg';
+  const path=`${atdNum}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+  try{
+    const {error}=await supa.storage.from('desenhos').upload(path,file,{contentType:file.type||'image/jpeg',upsert:false});
+    if(error)throw error;
+    const {data}=supa.storage.from('desenhos').getPublicUrl(path);
+    return{path,url:data.publicUrl};
+  }catch(e){
+    console.warn('Storage upload falhou, usando base64 fallback:',e.message);
+    return null;
+  }
+}
+
+// ── Limpar desenhos do Storage quando ATD fecha ───────────────────
+async function _limparDesenhoStorage(atdNum){
+  if(!atdNum)return;
+  try{
+    const {data}=await supa.from('desenhos').select('storage_path').eq('atd_id',atdNum);
+    if(!data||!data.length)return;
+    const paths=data.map(d=>d.storage_path).filter(Boolean);
+    if(paths.length){
+      await supa.storage.from('desenhos').remove(paths);
+      console.log(`✓ Storage: ${paths.length} arquivo(s) removido(s) · ATD ${atdNum}`);
+    }
+  }catch(e){console.warn('_limparDesenhoStorage:',e.message);}
+}
+
+// ── Verificar uso do Storage (para alerta de limite) ──────────────
+async function _verificarUsoStorage(){
+  try{
+    const {data}=await supa.rpc('get_storage_usage');
+    if(data&&data.used_bytes){
+      const usedMB=data.used_bytes/1024/1024;
+      const limitMB=1024; // 1GB free tier
+      const pct=Math.round(usedMB/limitMB*100);
+      if(pct>=80){
+        const el=document.getElementById('storage-alerta');
+        if(el){
+          el.style.display='flex';
+          el.textContent=`⚠ Storage ${pct}% utilizado (${usedMB.toFixed(0)}MB / 1GB). Faça upgrade do plano ou libere espaço.`;
+        }
+      }
+      return{usedMB:usedMB.toFixed(1),pct};
+    }
+  }catch(e){
+    // Fallback: contar via tabela desenhos
+    try{
+      const {count}=await supa.from('desenhos').select('*',{count:'exact',head:true}).not('storage_path','is',null);
+      return{count:count||0};
+    }catch(e2){}
+  }
+  return null;
+}
+
+async function _processarArquivo(file, atdNum, gridId, badgeId, countId, contexto){
   if(!file) return;
-  const maxMB = 5;
-  if(file.size > maxMB*1024*1024){ alert(`Arquivo muito grande. Máximo ${maxMB}MB.`); return; }
-  const reader = new FileReader();
-  reader.onload = e => {
-    const atd = S.atendimentos[atdNum];
-    if(!atd) return;
-    if(!atd.desenhos) atd.desenhos = [];
-    atd.desenhos.push({ dataUrl: e.target.result, nome: file.name, tipo: file.type, adicionadoPor: S.vendedor.nome, hora: hora() });
-    renderDesenhos(atdNum, gridId, badgeId, countId, contexto);
-    // Atualiza badge na fila do operador se visível
-    if(document.getElementById('op-fila-lista')) renderFilaProducao();
-  };
-  reader.readAsDataURL(file);
+  const maxMB=15;
+  if(file.size>maxMB*1024*1024){alert(`Arquivo muito grande. Máximo ${maxMB}MB.`);return;}
+
+  // Comprimir se for imagem
+  const compressed=await _comprimirImagem(file,1920,1920,0.78);
+
+  // Tentar upload no Storage
+  const uploadResult=await _uploadDesenho(compressed,atdNum);
+
+  const atd=S.atendimentos[atdNum];
+  if(!atd)return;
+  if(!atd.desenhos)atd.desenhos=[];
+
+  if(uploadResult){
+    // Storage OK — salva URL + path (sem base64)
+    atd.desenhos.push({
+      storagePath:uploadResult.path,
+      dataUrl:uploadResult.url,
+      nome:file.name,tipo:file.type,
+      adicionadoPor:S.vendedor.nome,hora:hora()
+    });
+  } else {
+    // Fallback base64 se Storage falhar
+    const reader=new FileReader();
+    reader.onload=e=>{
+      atd.desenhos.push({dataUrl:e.target.result,nome:file.name,tipo:file.type,adicionadoPor:S.vendedor.nome,hora:hora()});
+      renderDesenhos(atdNum,gridId,badgeId,countId,contexto);
+      if(document.getElementById('op-fila-lista'))renderFilaProducao();
+    };
+    reader.readAsDataURL(compressed);
+    return;
+  }
+  renderDesenhos(atdNum,gridId,badgeId,countId,contexto);
+  if(document.getElementById('op-fila-lista'))renderFilaProducao();
 }
 
 function anexarDesenho(inp){
@@ -4892,7 +4999,7 @@ function gerarPdfOrcamento(){
     doc.setFont('helvetica','normal');
     doc.setFontSize(8);
     doc.setTextColor(95,94,90);
-    doc.text(`${item.larg}×${item.alt}mm (real)`, pad+3, y+6);
+    doc.text(`${item.larg}×${item.alt}mm`, pad+3, y+6);
     doc.setFont('helvetica','bold');
     doc.setFontSize(9);
     doc.setTextColor(26,26,24);
@@ -5029,8 +5136,7 @@ function gerarPdfConfirmacao(atdNum){
   doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(26,26,24);
   doc.text(nomeVnd, pad+4, y+13);
   doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(95,94,90);
-  doc.text(`Iniciais: ${iniciais}`, pad+4, y+18);
-  doc.text(atdNum, pad+4, y+22);
+  doc.text('Max Vidros Vidros Especiais', pad+4, y+18);
   // Interno
   doc.setFillColor(225,245,238); doc.rect(pad+mw+8, y, mw, 24, 'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(95,94,90);
@@ -5212,7 +5318,8 @@ async function enviarOrcamento(){
           atd_id: c.atd,
           nome: d.nome||'Desenho',
           tipo: d.tipo||'image/jpeg',
-          data_url: d.dataUrl||null,
+          storage_path: d.storagePath||null,
+          data_url: d.storagePath ? null : (d.dataUrl||null), // base64 só no fallback
           adicionado_por: d.adicionadoPor||S.vendedor.nome,
           hora: d.hora||h
         }))
@@ -6528,6 +6635,8 @@ async function confirmarRecusa(){
       hora: agora
     });
   } catch(e){ console.warn('Supabase confirmarRecusa:', e); }
+  // Limpar desenhos do Storage ao recusar (não há mais necessidade operacional)
+  _limparDesenhoStorage(atdNum);
 
   document.getElementById('apr-recusa-form').style.display='none';
   document.getElementById('apr-acoes').style.display='none';
@@ -7571,20 +7680,40 @@ async function pcpMkEtiqHTML(op,item,lote,num){
   const etapas=pcpGetPipeline(item),et=item.etapa_atual||0;
   let qrImg='';
   if(typeof QRCode!=='undefined'){try{qrImg=await QRCode.toDataURL(`${location.origin}?atd=${op.id}&item=${item.id}`,{width:64,margin:1,color:{dark:'#0F2547',light:'#fff'}});}catch(e){}}
-  return `<div class="pcp-etiq-wrap">
-    ${item.usinagem_desenho?`<div style="position:absolute;top:6px;right:6px;font-size:8px;background:var(--azul-bg);color:var(--azul);padding:1px 5px;border-radius:3px;font-weight:600">Desenho</div>`:''}
-    <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:5px;border-bottom:.5px solid var(--borda);margin-bottom:6px">
-      <div><div style="font-size:10px;font-weight:700;color:var(--azul)">MAX VIDROS</div><div style="font-size:9px;font-family:var(--mono);color:var(--texto3)">${op.op_numero||op.id}</div></div>
-      ${lote?`<span style="font-size:9px;background:var(--amarelo-bg);color:var(--amarelo);padding:1px 6px;border-radius:4px;font-weight:600">LOTE ${item.qty}pcs</span>`:`<span style="font-size:9px;color:var(--texto3)">Peca ${num}/${item.qty}</span>`}
+  const paralelogramas=`<svg width="26" height="22" viewBox="0 0 60 52" style="display:inline-block;vertical-align:middle">
+    <defs>
+      <linearGradient id="etq-lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#B8C4D0"/><stop offset="100%" stop-color="#6B7A8D"/></linearGradient>
+      <linearGradient id="etq-lb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#A8DFFB"/><stop offset="100%" stop-color="#3AACDF"/></linearGradient>
+      <linearGradient id="etq-lc" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#29C4F6"/><stop offset="100%" stop-color="#0077B6"/></linearGradient>
+    </defs>
+    <polygon points="38,6 52,6 44,46 30,46" fill="url(#etq-lg)" opacity="0.85"/>
+    <polygon points="25,6 39,6 31,46 17,46" fill="url(#etq-lb)" opacity="0.92"/>
+    <polygon points="12,6 26,6 18,46 4,46" fill="url(#etq-lc)"/>
+  </svg>`;
+  return `<div class="pcp-etiq-wrap" style="position:relative">
+    <div style="background:#0F2547;margin:-8px -8px 8px -8px;padding:6px 8px;border-radius:5px 5px 0 0;display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:5px">
+        ${paralelogramas}
+        <span style="font-size:9px;font-weight:700;color:#fff;letter-spacing:.04em">MAX VIDROS</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px">
+        ${item.usinagem_desenho?`<span style="font-size:8px;background:#E2EBF8;color:#0C447C;padding:1px 5px;border-radius:3px;font-weight:700">Desenho</span>`:''}
+        ${lote?`<span style="font-size:8px;background:#FAEEDA;color:#633806;padding:1px 5px;border-radius:3px;font-weight:700">LOTE ${item.qty}pcs</span>`:
+               `<span style="font-size:8px;color:rgba(255,255,255,.55)">Peça ${num}/${item.qty}</span>`}
+        <span style="font-size:8px;color:rgba(255,255,255,.45);font-family:var(--mono)">${op.op_numero||op.id}</span>
+      </div>
     </div>
     <div style="display:flex;gap:8px">
       <div style="flex:1">
         <div style="font-size:11px;font-weight:600;color:var(--texto);margin-bottom:2px">${item.descricao}</div>
-        <div style="font-size:14px;font-weight:700;color:var(--azul);margin-bottom:2px">${item.larg}x${item.alt}mm</div>
-        <div style="font-size:10px;color:var(--texto3);margin-bottom:5px">${op.cliente}</div>
-        <div style="display:flex;flex-wrap:wrap;gap:2px">${etapas.map((e,i)=>`<span style="font-size:8px;padding:1px 4px;border-radius:2px;${i===et?'background:var(--azul);color:#fff':i<et?'background:var(--verde-bg);color:var(--verde)':'background:var(--bg);border:.5px solid var(--borda);color:var(--texto3)'}">${e}</span>`).join('')}</div>
+        <div style="font-size:16px;font-weight:700;color:var(--azul);margin-bottom:2px;font-family:var(--mono)">${item.larg}×${item.alt}mm</div>
+        <div style="font-size:10px;color:var(--texto3);margin-bottom:6px">${op.cliente||''}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:2px">${etapas.map((e,i)=>`<span style="font-size:7px;padding:2px 5px;border-radius:3px;${i===et?'background:var(--azul);color:#fff;font-weight:600':i<et?'background:var(--verde-bg);color:var(--verde)':'background:var(--bg);border:.5px solid var(--borda);color:var(--texto3)'}">${e}</span>`).join('')}</div>
       </div>
-      ${qrImg?`<img src="${qrImg}" style="width:60px;height:60px;flex-shrink:0;border-radius:4px">`:``}
+      ${qrImg?`<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px">
+        <img src="${qrImg}" style="width:54px;height:54px;border-radius:4px;border:.5px solid var(--borda)">
+        <div style="font-size:6px;color:var(--texto3);font-family:var(--mono)">${op.id}</div>
+      </div>`:''}
     </div>
   </div>`;
 }
@@ -7595,27 +7724,115 @@ async function pcpEtiqImprimir(){
   if(typeof window.jspdf==='undefined'){alert('PDF carregando, tente novamente.');return;}
   const{jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
-  const EW=100,EH=80,MX=5,MY=5,EX=5,EY=5,COL=3;
+  // Layout: 3 colunas × 3 linhas por folha A4 landscape
+  const EW=92,EH=76,MX=6,MY=6,EX=4,EY=4,COL=3;
   const totPcs=(op.itens||[]).reduce((s,i)=>s+(i.qty||1),0),emLote=totPcs>10,etqs=[];
   (op.itens||[]).forEach(it=>{if(emLote&&it.qty>1)etqs.push({op,it,lote:true,n:1});else for(let q=0;q<(it.qty||1);q++)etqs.push({op,it,lote:false,n:q+1});});
+
+  // Helper: paralelogramos jsPDF (mesmos da tela de login)
+  function _etqLogo(doc,x,y){
+    const shape=[[4.9,0],[-2.8,14],[-4.9,0]];
+    const s=0.28; // escala reduzida para etiqueta
+    const ss=[[4.9*s,0],[-2.8*s,14*s],[-4.9*s,0]];
+    doc.setFillColor(20,157,214);   doc.lines(ss,x+3,    y,[1,1],'F',true);
+    doc.setFillColor(113,197,237);  doc.lines(ss,x+5.5,  y,[1,1],'F',true);
+    doc.setFillColor(145,159,174);  doc.lines(ss,x+7.8,  y,[1,1],'F',true);
+  }
+
   for(let idx=0;idx<etqs.length;idx++){
     const{op:o,it,lote,n}=etqs[idx];
     const pos=idx%(COL*3),col=pos%COL,row=Math.floor(pos/COL);
     if(pos===0&&idx>0)doc.addPage();
-    const x=MX+col*(EW+EX),y=MY+row*(EH+EY),etapas=pcpGetPipeline(it),et=it.etapa_atual||0;
-    doc.setDrawColor(15,37,71);doc.setLineWidth(.5);doc.roundedRect(x,y,EW,EH,2,2,'S');
-    doc.setFillColor(15,37,71);doc.roundedRect(x,y,EW,10,2,2,'F');doc.rect(x,y+6,EW,4,'F');
-    doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text('MAX VIDROS',x+3,y+7);
-    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.text(o.op_numero||o.id,x+EW-3,y+7,{align:'right'});
-    doc.setTextColor(15,37,71);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text((it.descricao||'').substring(0,36),x+3,y+18);
-    doc.setFontSize(13);doc.text(`${it.larg}x${it.alt}mm`,x+3,y+28);
-    doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(100,100,100);doc.text((o.cliente||'').substring(0,30),x+3,y+34);
-    if(lote){doc.setFillColor(250,238,218);doc.roundedRect(x+3,y+36,28,5,1,1,'F');doc.setTextColor(186,117,23);doc.setFontSize(7);doc.setFont('helvetica','bold');doc.text(`LOTE ${it.qty}pcs`,x+5,y+40);}
-    else{doc.setTextColor(130,130,130);doc.setFontSize(7);doc.setFont('helvetica','normal');doc.text(`Peca ${n}/${it.qty}`,x+3,y+40);}
-    let ex=x+3;etapas.forEach((e,i)=>{const tw=doc.getTextWidth(e)+3;if(ex>x+EW-20)return;if(i===et){doc.setFillColor(15,37,71);doc.roundedRect(ex,y+43,tw,4.5,1,1,'F');doc.setTextColor(255,255,255);}else if(i<et){doc.setFillColor(225,245,238);doc.roundedRect(ex,y+43,tw,4.5,1,1,'F');doc.setTextColor(15,110,86);}else{doc.setFillColor(244,243,239);doc.roundedRect(ex,y+43,tw,4.5,1,1,'F');doc.setTextColor(160,160,160);}doc.setFontSize(5.5);doc.setFont('helvetica',i===et?'bold':'normal');doc.text(e,ex+1.5,y+46.5);ex+=tw+2;});
-    if(it.usinagem_desenho){doc.setFillColor(226,235,248);doc.roundedRect(x+EW-20,y+12,17,5,1,1,'F');doc.setTextColor(15,37,71);doc.setFontSize(6);doc.setFont('helvetica','bold');doc.text('Desenho',x+EW-19,y+15.5);}
-    if(typeof QRCode!=='undefined'){try{const qrData=await QRCode.toDataURL(`${location.origin}?atd=${o.id}&item=${it.id}`,{width:128,margin:1,color:{dark:'#0F2547',light:'#ffffff'}});doc.addImage(qrData,'PNG',x+EW-22,y+EH-23,19,19);}catch(e){}}
+    const x=MX+col*(EW+EX),y=MY+row*(EH+EY);
+    const etapas=pcpGetPipeline(it),et=it.etapa_atual||0;
+
+    // Borda da etiqueta
+    doc.setDrawColor(200,200,200);doc.setLineWidth(.3);doc.roundedRect(x,y,EW,EH,2,2,'S');
+
+    // ── Header azul ──────────────────────────────────────────────
+    doc.setFillColor(15,37,71);doc.roundedRect(x,y,EW,11,2,2,'F');doc.rect(x,y+7,EW,4,'F');
+
+    // Paralelogramos no header
+    _etqLogo(doc,x+2,y+1.5);
+
+    // Nome empresa
+    doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(8);
+    doc.text('MAX VIDROS',x+12,y+7.5);
+
+    // Badge lote ou peça (centro)
+    if(lote){
+      doc.setFillColor(250,238,218);doc.roundedRect(x+EW/2-14,y+2,28,5,1,1,'F');
+      doc.setTextColor(186,117,23);doc.setFontSize(6.5);doc.setFont('helvetica','bold');
+      doc.text(`LOTE ${it.qty}pcs`,x+EW/2,y+5.5,{align:'center'});
+    } else {
+      doc.setTextColor(160,180,220);doc.setFont('helvetica','normal');doc.setFontSize(6.5);
+      doc.text(`Peça ${n}/${it.qty}`,x+EW/2,y+5.5,{align:'center'});
+    }
+
+    // OP número (direita)
+    doc.setTextColor(160,180,220);doc.setFont('helvetica','normal');doc.setFontSize(6.5);
+    doc.text(o.op_numero||o.id,x+EW-3,y+7.5,{align:'right'});
+
+    // Badge Desenho se necessário
+    if(it.usinagem_desenho){
+      doc.setFillColor(226,235,248);doc.roundedRect(x+EW-22,y+2,20,5,1,1,'F');
+      doc.setTextColor(12,68,124);doc.setFontSize(6);doc.setFont('helvetica','bold');
+      doc.text('Desenho',x+EW-12,y+5.5,{align:'center'});
+    }
+
+    // ── Corpo ─────────────────────────────────────────────────────
+    // Descrição
+    doc.setTextColor(15,37,71);doc.setFont('helvetica','bold');doc.setFontSize(7.5);
+    doc.text((it.descricao||'').substring(0,38),x+3,y+18);
+
+    // Dimensão em destaque
+    doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(15,37,71);
+    doc.text(`${it.larg}×${it.alt}mm`,x+3,y+29);
+
+    // Cliente
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(130,130,130);
+    doc.text((o.cliente||'').substring(0,32),x+3,y+35);
+
+    // ── Pipeline de etapas ────────────────────────────────────────
+    let ex=x+3;
+    etapas.forEach((e,i)=>{
+      const tw=doc.getTextWidth(e)+3;
+      if(ex>x+EW-4)return;
+      if(i===et){
+        doc.setFillColor(15,37,71);doc.roundedRect(ex,y+38,tw,5,1,1,'F');
+        doc.setTextColor(255,255,255);
+      } else if(i<et){
+        doc.setFillColor(225,245,238);doc.roundedRect(ex,y+38,tw,5,1,1,'F');
+        doc.setTextColor(15,110,86);
+      } else {
+        doc.setFillColor(244,243,239);doc.roundedRect(ex,y+38,tw,5,1,1,'F');
+        doc.setTextColor(160,160,160);
+      }
+      doc.setFontSize(5.5);doc.setFont('helvetica',i===et?'bold':'normal');
+      doc.text(e,ex+1.5,y+41.5);
+      ex+=tw+2;
+    });
+
+    // Linha separadora antes do QR
+    doc.setDrawColor(240,240,240);doc.setLineWidth(.3);
+    doc.line(x+3,y+EH-24,x+EW-3,y+EH-24);
+
+    // Lote da chapa (info interna, canto inferior esquerdo)
+    const loteInfo=(o.lote||o.itens?.[0]?.cod_lote||'');
+    if(loteInfo){
+      doc.setFont('helvetica','normal');doc.setFontSize(5.5);doc.setTextColor(180,180,180);
+      doc.text(`NF: ${loteInfo}`,x+3,y+EH-4);
+    }
+
+    // QR Code (canto inferior direito)
+    if(typeof QRCode!=='undefined'){
+      try{
+        const qrData=await QRCode.toDataURL(`${location.origin}?atd=${o.id}&item=${it.id}`,{width:128,margin:1,color:{dark:'#0F2547',light:'#ffffff'}});
+        doc.addImage(qrData,'PNG',x+EW-22,y+EH-23,19,19);
+      }catch(e){}
+    }
   }
+
   doc.save(`Etiquetas_${op.op_numero||op.id}.pdf`);
   try{await supa.from('etiquetas').insert(etqs.map(q=>({atd_id:q.op.id,item_id:q.it.id,tipo:q.lote?'lote':'individual',qty_pecas:q.lote?q.it.qty:1,qr_payload:`${location.origin}?atd=${q.op.id}&item=${q.it.id}`,gerado_por:S.vendedor?.id})));}catch(e){}
 }
