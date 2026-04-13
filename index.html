@@ -1883,20 +1883,14 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
   <div class="topbar">
     <div class="topbar-row">
       <button class="btn-voltar" onclick="ir('tela-pcp-estoque')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
-      <div style="flex:1"><h1>OPs PCP</h1><p>Validação · Produção · Concluídos</p></div>
-      <button onclick="pcpRecarregarOPs()" style="background:rgba(255,255,255,.12);border:none;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="2" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
-      </button>
+      <div><h1>OPs Aguardando</h1><p>Sequenciamento e plano de corte</p></div>
     </div>
   </div>
   <div class="body">
     <div style="display:flex;background:var(--card);border-radius:var(--r);padding:3px;margin-bottom:12px;border:.5px solid var(--borda)">
-      <button class="fup-tab ativo" id="pcp-tab-val" onclick="pcpOpsAba('aguardando_pcp')">
-        Validação <span id="pcp-badge-val" style="display:none;background:#A32D2D;color:#fff;border-radius:10px;padding:0 5px;font-size:9px;margin-left:3px">0</span>
-      </button>
-      <button class="fup-tab" id="pcp-tab-ag" onclick="pcpOpsAba('pedido')">Liberadas</button>
-      <button class="fup-tab" id="pcp-tab-pr" onclick="pcpOpsAba('producao')">Produção</button>
-      <button class="fup-tab" id="pcp-tab-co" onclick="pcpOpsAba('concluido')">Concluídos</button>
+      <button class="fup-tab ativo" id="pcp-tab-ag" onclick="pcpOpsAba('pedido')">Aguardando</button>
+      <button class="fup-tab" id="pcp-tab-pr" onclick="pcpOpsAba('producao')">Em Producao</button>
+      <button class="fup-tab" id="pcp-tab-co" onclick="pcpOpsAba('concluido')">Concluidos</button>
     </div>
     <div id="pcp-ops-lista"></div>
   </div>
@@ -2664,7 +2658,7 @@ async function fazerLogin(){
   } else if(usuario.perfil==='pcp'){
     destino='tela-pcp-estoque';
     setTimeout(()=>pcpCarregarDados(), 200);
-    if(S.perfil==='gestor'||S.perfil==='admin'||S.perfil==='pcp') setTimeout(_verificarUsoStorage, 3000);
+    if(S.perfil==='gestor'||S.perfil==='admin'||S.perfil==='pcp') setTimeout(_verificarUsoStorage,3000);
   } else if(usuario.perfil==='operador'||usuario.perfil==='gestor'){
     destino='tela-producao';
     try{
@@ -2844,7 +2838,6 @@ async function confirmarEtapa(itemId){
   if(atd.status==='pedido') atd.status='producao';
   if(atd.itens.every(i=>i.etapaAtual>=(getEtapasItem(i).length))){
     atd.status='concluido';
-    // Limpar desenhos do Storage após 30s (dar tempo de qualquer sync terminar)
     setTimeout(()=>_limparDesenhoStorage(S.atdApontamento),30000);
   }
   const temOcorr=tipoOcorr||textoOcorr;
@@ -2940,24 +2933,6 @@ async function abrirApontamento(atdNum){
     } catch(e){ console.warn('desenhos:', e); }
   }
   renderDesenhos(atdNum,'apt-desenhos-grid','apt-desenho-badge','apt-desenho-count','apt');
-  // Destaque visual se há desenho e etapa atual é usinagem
-  const _atdA=S.atendimentos[atdNum];
-  if(_atdA){
-    const _item0=(_atdA.itens||[])[0];
-    if(_item0?.usinagem?.desenho&&(_atdA.desenhos||[]).length){
-      const _dBadge=document.getElementById('apt-desenho-badge');
-      if(_dBadge){_dBadge.style.background='#0F2547';_dBadge.style.color='#fff';_dBadge.style.animation='none';}
-      const _dBtn=document.querySelector('#tela-apontamento .desenho-add-btn');
-      // Mostrar banner de atenção
-      const _dGrid=document.getElementById('apt-desenhos-grid');
-      if(_dGrid&&!document.getElementById('apt-desenho-aviso')){
-        const av=document.createElement('div');av.id='apt-desenho-aviso';
-        av.className='alerta alerta-info';av.style.marginBottom='8px';
-        av.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Consulte o desenho técnico antes de executar';
-        _dGrid.parentNode.insertBefore(av,_dGrid);
-      }
-    }
-  }
 }
 
 // mantida por compatibilidade — não usada diretamente
@@ -3227,35 +3202,31 @@ async function admSalvarProduto(){
 function admCancelarProduto(){ document.getElementById('adm-form-produto').style.display='none'; }
 async function admToggleProduto(id, ativo){ await supa.from('produtos').update({ativo:!ativo}).eq('id',id); await admCarregarProdutos(); }
 
-// ── Gestor: fechar ocorrência diretamente ────────────────────────
-async function gestorFecharOcorrencia(atdId, itemId, cardIdx){
-  const obs=prompt('Observação ao fechar (opcional):');
-  if(obs===null)return; // cancelado
+// ── Gestor: fechar ocorrência ────────────────────────────────────
+async function gestorFecharOcorrencia(idx){
+  const ocorr=(window._ocorrencias_abertas||[])[idx];
+  if(!ocorr){renderFilaProducao();return;}
+  const obs=prompt('Observação ao fechar (opcional):')||'';
   // Atualizar local
-  const atd=S.atendimentos[atdId];
+  const atd=S.atendimentos[ocorr.atd];
   if(atd){
     atd.itens.forEach(it=>{
-      if(!it.ocorrencias)return;
-      it.ocorrencias.forEach(o=>{ o.status='fechada'; o.fechadoPor=S.vendedor?.nome||'Gestor'; o.fechadoEm=hora(); if(obs)o.obs=obs; });
+      (it.ocorrencias||[]).forEach(o=>{
+        if(o.tipo===ocorr.tipo&&o.hora===ocorr.hora)
+          Object.assign(o,{status:'fechada',fechadoPor:S.vendedor?.nome||'Gestor',fechadoEm:hora()});
+      });
     });
   }
   try{
     await supa.from('ocorrencias')
       .update({status:'fechada',fechado_por:S.vendedor?.nome||'Gestor',fechado_em:new Date().toISOString(),obs:obs||null})
-      .eq('atd_id',atdId);
-    await supa.from('atividades').insert({
-      usuario_id:S.vendedor?.id||null,atd_id:atdId,tipo:'ocorrencia_fechada',
-      cliente:'',detalhe:`Ocorrência fechada pelo Gestor${obs?' · '+obs:''}`,hora:hora()
-    });
+      .eq('atd_id',ocorr.atd).eq('tipo',ocorr.tipo);
   }catch(e){console.warn('gestorFecharOcorrencia:',e);}
-  // Feedback visual — remover card
-  const card=document.getElementById('ocorr-card-'+cardIdx);
-  if(card){card.style.opacity='.4';card.style.pointerEvents='none';setTimeout(()=>renderFilaProducao(),600);}
-  else renderFilaProducao();
+  renderFilaProducao();
 }
 
 function renderFilaProducao(){
-  const todos = Object.values(S.atendimentos).filter(a=>['pedido','producao','concluido'].includes(a.status||'') && a.status!=='aguardando_pcp');
+  const todos = Object.values(S.atendimentos).filter(a=>['pedido','producao','concluido'].includes(a.status||''));
 
   // Contadores para os resumos (sempre sobre todos)
   const nFila     = todos.filter(a=>a.itens.every(i=>!i.etapaAtual||i.etapaAtual===0)).length;
@@ -3287,19 +3258,22 @@ function renderFilaProducao(){
         if(badge){ badge.style.display='block'; }
         if(cnt)  { cnt.textContent = todasOcorr.length; }
       }
+      // Registrar ocorrências no window para acesso pelo onclick
+      window._ocorrencias_abertas = todasOcorr;
+      const isGestor = S.perfil==='gestor';
       ocorrLista.innerHTML=todasOcorr.map((o,oi)=>`
-        <div id="ocorr-card-${oi}" style="background:#FCEBEB;border:.5px solid #F09595;border-radius:9px;padding:10px 12px;margin-bottom:6px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div style="background:#FCEBEB;border:.5px solid #F09595;border-radius:9px;padding:10px 12px;margin-bottom:6px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px" onclick="abrirApontamento('${o.atd}')" style="cursor:pointer">
             <span style="font-size:10px;font-weight:600;color:#791F1F">⚠ ${o.tipo}</span>
             <span style="font-size:9px;font-family:var(--mono);color:#A32D2D">${o.op_num||o.atd}</span>
           </div>
-          <div style="font-size:12px;font-weight:500;color:#501313;margin-bottom:2px" onclick="abrirApontamento('${o.atd}')" style="cursor:pointer">${o.razao}</div>
+          <div style="font-size:12px;font-weight:500;color:#501313;margin-bottom:2px">${o.razao}</div>
           <div style="font-size:11px;color:#A32D2D;margin-bottom:4px">${o.itemDesc} · ${o.etapa}</div>
-          <div style="font-size:10px;color:#C07070;margin-bottom:6px">${o.texto}</div>
-          <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:10px;color:#C07070;margin-bottom:${isGestor?'6':'0'}px">${o.texto}</div>
+          ${isGestor?`<div style="display:flex;align-items:center;justify-content:space-between">
             <span style="font-size:9px;color:#C07070">${o.op} · ${o.hora}</span>
-            ${S.perfil==='gestor'?`<button onclick="gestorFecharOcorrencia('${o.atd}','${o.itemId}',${oi})" style="font-size:10px;font-weight:600;background:#0F6E56;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:var(--font)">✓ Fechar</button>`:'<span style="font-size:9px;color:#C07070;cursor:pointer" onclick="abrirApontamento(''+o.atd+'')">toque para abrir</span>'}
-          </div>
+            <button onclick="gestorFecharOcorrencia(${oi})" style="font-size:10px;font-weight:600;background:#0F6E56;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:var(--font)">✓ Fechar</button>
+          </div>`:`<div style="font-size:9px;color:#C07070">${o.op} · ${o.hora} · toque para abrir</div>`}
         </div>`).join('');
     } else {
       ocorrSection.style.display='none';
@@ -3352,7 +3326,7 @@ function renderFilaProducao(){
         </div>
         <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:8px">
           ${ocorrItem?`<span style="font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;background:#FCEBEB;color:#A32D2D">⚠</span>`:''}
-          ${item.usinagem?.desenho&&!exp?`<span style="font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;background:#E2EBF8;color:#0C447C" onclick="event.stopPropagation();renderDesenhos('${a.cliente.atd}','apt-desenhos-grid','apt-desenho-badge','apt-desenho-count','apt')">📎</span>`:''}
+          ${item.usinagem&&item.usinagem.desenho&&!exp?`<span style="font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;background:#E2EBF8;color:#0C447C">📎</span>`:''}
           <span style="font-size:10px;font-weight:500;padding:2px 8px;border-radius:5px;background:${bg};color:${cor};white-space:nowrap">${etapaNome}</span>
         </div>
       </div>`;
@@ -3549,7 +3523,7 @@ async function syncDados(){
       .limit(200);
     if(S.perfil==='vendedor') query=query.eq('usuario_id', S.vendedor.id);
     if(S.perfil==='operador') query=query.in('status',['pedido','producao','concluido']);
-    if(S.perfil==='pcp'||S.perfil==='admin') query=query.in('status',['pedido','producao','concluido']);
+    if(S.perfil==='pcp'||S.perfil==='admin') query=query.in('status',['aguardando_pcp','pedido','producao','concluido']);
     const { data: atds, error } = await query;
     if(error||!atds||!atds.length) return;
     atds.forEach(a => {
@@ -3574,10 +3548,7 @@ async function syncDados(){
         prazoMaxDias:a.prazo_max_dias||null,
         op:a.op_numero?{numero:a.op_numero,efetivadoPor:a.op_efetivado_por,efetivadoEm:a.op_efetivado_em}:null,
         recusa:a.recusa_motivo?{motivo:a.recusa_motivo,recusadoPor:a.recusa_por,recusadoEm:a.recusa_em}:null,
-        desenhos:(a.desenhos||[]).map(d=>({
-          dataUrl:d.storage_path?supa.storage.from('desenhos').getPublicUrl(d.storage_path).data.publicUrl:(d.data_url||null),
-          storagePath:d.storage_path||null,nome:d.nome,tipo:d.tipo,adicionadoPor:d.adicionado_por,hora:d.hora
-        }))
+        desenhos:(a.desenhos||[]).map(d=>({dataUrl:d.data_url||null,nome:d.nome,tipo:d.tipo,adicionadoPor:d.adicionado_por,hora:d.hora}))
       };
     });
     // Atualizar UI da tela ativa
@@ -3695,8 +3666,7 @@ async function carregarDadosBD(usuario){
         op: a.op_numero ? { numero: a.op_numero, efetivadoPor: a.op_efetivado_por, efetivadoEm: a.op_efetivado_em } : null,
         recusa: a.recusa_motivo ? { motivo: a.recusa_motivo, recusadoPor: a.recusa_por, recusadoEm: a.recusa_em } : null,
         desenhos: (a.desenhos||[]).map(d=>({
-          dataUrl: d.storage_path?supa.storage.from('desenhos').getPublicUrl(d.storage_path).data.publicUrl:(d.data_url||null),
-          storagePath: d.storage_path||null,
+          dataUrl: d.data_url||null,
           nome: d.nome,
           tipo: d.tipo,
           adicionadoPor: d.adicionado_por,
@@ -3939,108 +3909,61 @@ function renderDesenhos(atdNum, gridId, badgeId, countId, contexto){
   }
 }
 
-// ── Compressão de imagem antes do upload ──────────────────────────
-// Reduz fotos de celular (~4MB) para ~300KB mantendo legibilidade
-function _comprimirImagem(file, maxW, maxH, qualidade){
-  return new Promise((resolve)=>{
+function _comprimirImagem(file,maxW,maxH,q){
+  return new Promise(resolve=>{
     if(!file.type.startsWith('image/')){resolve(file);return;}
-    const img=new Image();
-    const url=URL.createObjectURL(file);
+    const img=new Image(),url=URL.createObjectURL(file);
     img.onload=()=>{
       URL.revokeObjectURL(url);
       let w=img.width,h=img.height;
       if(w>maxW||h>maxH){const r=Math.min(maxW/w,maxH/h);w=Math.round(w*r);h=Math.round(h*r);}
-      const canvas=document.createElement('canvas');
-      canvas.width=w;canvas.height=h;
-      canvas.getContext('2d').drawImage(img,0,0,w,h);
-      canvas.toBlob(blob=>resolve(blob||file),'image/jpeg',qualidade);
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      c.toBlob(b=>resolve(b||file),'image/jpeg',q);
     };
     img.onerror=()=>{URL.revokeObjectURL(url);resolve(file);};
     img.src=url;
   });
 }
-
-// ── Upload para Supabase Storage ──────────────────────────────────
-async function _uploadDesenho(file, atdNum){
-  const ext=file.name?.split('.').pop()||'jpg';
+async function _uploadDesenho(file,atdNum){
+  const ext=(file.name||'img').split('.').pop()||'jpg';
   const path=`${atdNum}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
   try{
-    const {error}=await supa.storage.from('desenhos').upload(path,file,{contentType:file.type||'image/jpeg',upsert:false});
+    const{error}=await supa.storage.from('desenhos').upload(path,file,{contentType:file.type||'image/jpeg',upsert:false});
     if(error)throw error;
-    const {data}=supa.storage.from('desenhos').getPublicUrl(path);
+    const{data}=supa.storage.from('desenhos').getPublicUrl(path);
     return{path,url:data.publicUrl};
-  }catch(e){
-    console.warn('Storage upload falhou, usando base64 fallback:',e.message);
-    return null;
-  }
+  }catch(e){console.warn('Storage upload falhou:',e.message);return null;}
 }
-
-// ── Limpar desenhos do Storage quando ATD fecha ───────────────────
 async function _limparDesenhoStorage(atdNum){
   if(!atdNum)return;
   try{
-    const {data}=await supa.from('desenhos').select('storage_path').eq('atd_id',atdNum);
+    const{data}=await supa.from('desenhos').select('storage_path').eq('atd_id',atdNum);
     if(!data||!data.length)return;
     const paths=data.map(d=>d.storage_path).filter(Boolean);
-    if(paths.length){
-      await supa.storage.from('desenhos').remove(paths);
-      console.log(`✓ Storage: ${paths.length} arquivo(s) removido(s) · ATD ${atdNum}`);
-    }
+    if(paths.length){await supa.storage.from('desenhos').remove(paths);}
   }catch(e){console.warn('_limparDesenhoStorage:',e.message);}
 }
-
-// ── Verificar uso do Storage (para alerta de limite) ──────────────
 async function _verificarUsoStorage(){
   try{
-    const {data}=await supa.rpc('get_storage_usage');
-    if(data&&data.used_bytes){
-      const usedMB=data.used_bytes/1024/1024;
-      const limitMB=1024; // 1GB free tier
-      const pct=Math.round(usedMB/limitMB*100);
-      if(pct>=80){
-        const el=document.getElementById('storage-alerta');
-        if(el){
-          el.style.display='flex';
-          el.textContent=`⚠ Storage ${pct}% utilizado (${usedMB.toFixed(0)}MB / 1GB). Faça upgrade do plano ou libere espaço.`;
-        }
-      }
-      return{usedMB:usedMB.toFixed(1),pct};
-    }
-  }catch(e){
-    // Fallback: contar via tabela desenhos
-    try{
-      const {count}=await supa.from('desenhos').select('*',{count:'exact',head:true}).not('storage_path','is',null);
-      return{count:count||0};
-    }catch(e2){}
-  }
-  return null;
+    const el=document.getElementById('storage-alerta');
+    const{count}=await supa.from('desenhos').select('*',{count:'exact',head:true}).not('storage_path','is',null);
+    if(count>200&&el){el.style.display='flex';el.textContent='Atenção: Storage com muitos arquivos. Considere upgrade do plano.';}
+  }catch(e){}
 }
-
-async function _processarArquivo(file, atdNum, gridId, badgeId, countId, contexto){
-  if(!file) return;
-  const maxMB=15;
-  if(file.size>maxMB*1024*1024){alert(`Arquivo muito grande. Máximo ${maxMB}MB.`);return;}
-
-  // Comprimir se for imagem
+async function _processarArquivo(file,atdNum,gridId,badgeId,countId,contexto){
+  if(!file)return;
+  if(file.size>15*1024*1024){alert('Arquivo muito grande. Máximo 15MB.');return;}
   const compressed=await _comprimirImagem(file,1920,1920,0.78);
-
-  // Tentar upload no Storage
-  const uploadResult=await _uploadDesenho(compressed,atdNum);
-
   const atd=S.atendimentos[atdNum];
   if(!atd)return;
   if(!atd.desenhos)atd.desenhos=[];
-
-  if(uploadResult){
-    // Storage OK — salva URL + path (sem base64)
-    atd.desenhos.push({
-      storagePath:uploadResult.path,
-      dataUrl:uploadResult.url,
-      nome:file.name,tipo:file.type,
-      adicionadoPor:S.vendedor.nome,hora:hora()
-    });
+  const up=await _uploadDesenho(compressed,atdNum);
+  if(up){
+    atd.desenhos.push({storagePath:up.path,dataUrl:up.url,nome:file.name,tipo:file.type,adicionadoPor:S.vendedor.nome,hora:hora()});
+    renderDesenhos(atdNum,gridId,badgeId,countId,contexto);
+    if(document.getElementById('op-fila-lista'))renderFilaProducao();
   } else {
-    // Fallback base64 se Storage falhar
     const reader=new FileReader();
     reader.onload=e=>{
       atd.desenhos.push({dataUrl:e.target.result,nome:file.name,tipo:file.type,adicionadoPor:S.vendedor.nome,hora:hora()});
@@ -4048,10 +3971,7 @@ async function _processarArquivo(file, atdNum, gridId, badgeId, countId, context
       if(document.getElementById('op-fila-lista'))renderFilaProducao();
     };
     reader.readAsDataURL(compressed);
-    return;
   }
-  renderDesenhos(atdNum,gridId,badgeId,countId,contexto);
-  if(document.getElementById('op-fila-lista'))renderFilaProducao();
 }
 
 function anexarDesenho(inp){
@@ -5373,7 +5293,7 @@ async function enviarOrcamento(){
           nome: d.nome||'Desenho',
           tipo: d.tipo||'image/jpeg',
           storage_path: d.storagePath||null,
-          data_url: d.storagePath ? null : (d.dataUrl||null), // base64 só no fallback
+          data_url: d.storagePath?null:(d.dataUrl||null),
           adicionado_por: d.adicionadoPor||S.vendedor.nome,
           hora: d.hora||h
         }))
@@ -6370,17 +6290,16 @@ let _atdAprovacao = null;
 
 const STATUS_LABEL = {
   orcamento:'Orçamento', enviado:'Aguard. Aprovação',
-  pedido:'Aguard. PCP', aguardando_pcp:'Aguard. PCP',
-  producao:'Em Produção', concluido:'Concluído', recusado:'Recusado'
+  pedido:'Pedido', producao:'Em Produção',
+  concluido:'Concluído', recusado:'Recusado'
 };
 const STATUS_COR = {
-  orcamento:     {bg:'var(--bg)',txt:'var(--texto3)'},
-  enviado:       {bg:'#FAEEDA',txt:'#633806'},
-  pedido:        {bg:'#F4E8FB',txt:'#6B21A8'},
-  aguardando_pcp:{bg:'#F4E8FB',txt:'#6B21A8'},
-  producao:      {bg:'#E1F5EE',txt:'#085041'},
-  concluido:     {bg:'#E1F5EE',txt:'#085041'},
-  recusado:      {bg:'#FCEBEB',txt:'#A32D2D'}
+  orcamento:{bg:'var(--bg)',txt:'var(--texto3)'},
+  enviado:  {bg:'#FAEEDA',txt:'#633806'},
+  pedido:   {bg:'var(--azul-bg)',txt:'#0C447C'},
+  producao: {bg:'#E1F5EE',txt:'#085041'},
+  concluido:{bg:'#E1F5EE',txt:'#085041'},
+  recusado: {bg:'#FCEBEB',txt:'#A32D2D'}
 };
 
 function intNavAtivo(destino){
@@ -6612,7 +6531,7 @@ async function efetivarPedido(){
   const agora = hora();
   const hoje = new Date().toLocaleDateString('pt-BR');
   const prazo = prazoMaxATD(atd);
-  atd.status = 'aguardando_pcp';
+  atd.status = 'pedido';
   atd.op = {numero:opNum, efetivadoPor:S.vendedor.nome, efetivadoEm:agora};
   atd.dataEfetivacao = hoje;
   atd.prazoMaxDias = prazo;
@@ -6690,7 +6609,6 @@ async function confirmarRecusa(){
       hora: agora
     });
   } catch(e){ console.warn('Supabase confirmarRecusa:', e); }
-  // Limpar desenhos do Storage ao recusar (não há mais necessidade operacional)
   _limparDesenhoStorage(atdNum);
 
   document.getElementById('apr-recusa-form').style.display='none';
@@ -6791,7 +6709,7 @@ async function pcpRecarregarOPs(){
     const { data } = await supa
       .from('atendimentos')
       .select('*, clientes(*), itens_atd(*), etapas_producao(*)')
-      .in('status', ['aguardando_pcp','pedido','producao','concluido'])
+      .in('status', ['pedido','producao','concluido'])
       .order('criado_em', {ascending: false});
     if(data && data.length){
       PCP.ops = data.map(a=>({
@@ -6893,7 +6811,7 @@ function pcpPopularSels(){
     if(!s) return;
     s.innerHTML='<option value="">— Selecione —</option>'+ops.map(a=>`<option value="${a.id}">${a.op_numero} · ${a.cliente}</option>`).join('');
   });
-  const ag=PCP.ops.filter(a=>a.status==='aguardando_pcp').length;
+  const ag=PCP.ops.filter(a=>a.status==='pedido').length;
   const b=document.getElementById('pcp-badge-nav');
   if(b){b.style.display=ag>0?'inline-flex':'none';b.textContent=ag;}
 }
@@ -7002,12 +6920,12 @@ async function pcpSalvarCadastroMP(){
 }
 
 // ── OPs ──
-let _pcpOpsStatus='aguardando_pcp';
+let _pcpOpsStatus='pedido';
 function pcpOpsAba(st){
   _pcpOpsStatus=st;
-  const mapa={aguardando_pcp:'val',pedido:'ag',producao:'pr',concluido:'co'};
-  ['val','ag','pr','co'].forEach(k=>document.getElementById('pcp-tab-'+k)?.classList.remove('ativo'));
-  document.getElementById('pcp-tab-'+(mapa[st]||'val'))?.classList.add('ativo');
+  const mapa={pedido:'ag',producao:'pr',concluido:'co'};
+  ['ag','pr','co'].forEach(k=>document.getElementById('pcp-tab-'+k)?.classList.remove('ativo'));
+  document.getElementById('pcp-tab-'+(mapa[st]||'ag'))?.classList.add('ativo');
   pcpRenderOps();
 }
 
@@ -7015,61 +6933,17 @@ function pcpRenderOps(){
   const lista=PCP.ops.filter(a=>a.status===_pcpOpsStatus);
   const el=document.getElementById('pcp-ops-lista');
   if(!el) return;
-  const labels={aguardando_pcp:'Nenhuma OP aguardando validação.',pedido:'Nenhuma OP liberada.',producao:'Nenhuma OP em produção.',concluido:'Nenhuma OP concluída.'};
-  if(!lista.length){el.innerHTML=`<div style="text-align:center;padding:40px 0;color:var(--texto3)">${labels[_pcpOpsStatus]||'Nenhuma OP.'}</div>`;return;}
+  if(!lista.length){el.innerHTML='<div style="text-align:center;padding:40px 0;color:var(--texto3)">Nenhuma OP nesta fila.</div>';return;}
   el.innerHTML=lista.map(a=>{
     const tot=(a.itens||[]).reduce((s,i)=>s+(i.total||0),0);
-    const sc=STATUS_COR[a.status]||STATUS_COR.pedido;
-    const tag=`<span style="font-size:10px;background:${sc.bg};color:${sc.txt};padding:2px 8px;border-radius:5px;font-weight:600">${STATUS_LABEL[a.status]||a.status}</span>`;
-    const temDesenho=(a.itens||[]).some(i=>i.usinagem?.desenho||(a.desenhos&&a.desenhos.length));
-    const nDesenhos=(a.desenhos||[]).length;
-    const temUsinagem=(a.itens||[]).some(i=>i.usinagem?.tipos?.length||i.usinagem?.modelado);
-    const prazoInfo=a.prazoMaxDias?`<span style="font-size:10px;color:var(--texto3)">${a.prazoMaxDias}d úteis</span>`:'';
-
-    // ── ABA VALIDAÇÃO ─────────────────────────────────────────
-    if(_pcpOpsStatus==='aguardando_pcp'){
-      return `<div class="card" style="margin-bottom:10px;border-left:3px solid #6B21A8">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:var(--azul)">${a.op_numero||a.id}</span>
-          ${tag}
-        </div>
-        <div style="font-size:14px;font-weight:500;margin-bottom:2px">${a.cliente||''}</div>
-        <div style="font-size:12px;color:var(--texto3);margin-bottom:8px">${(a.itens||[]).length} item(s) · R$ ${fmt(tot)} ${prazoInfo?'· '+prazoInfo:''}</div>
-
-        ${(a.itens||[]).map(it=>`
-          <div style="background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:5px">
-            <div style="font-size:12px;font-weight:500;color:var(--texto);margin-bottom:2px">${it.descricao||''}</div>
-            <div style="font-size:11px;color:var(--texto3)">${it.larg}×${it.alt}mm · ${it.qty} pç${it.qty>1?'s':''}</div>
-            ${it.usinagem?.tipos?.length?`<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">${it.usinagem.tipos.map(t=>`<span style="font-size:9px;background:var(--azul-bg);color:#0C447C;padding:1px 6px;border-radius:3px">${t}</span>`).join('')}</div>`:''}
-          </div>`).join('')}
-
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
-          ${temDesenho||nDesenhos?`
-          <button class="btn btn-secundario btn-sm" onclick="pcpVerDesenhos('${a.id}')" style="gap:5px">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Ver desenho${nDesenhos>1?'s ('+nDesenhos+')':''}
-          </button>`:''}
-          <button class="btn btn-secundario btn-sm" onclick="pcpAbrirOcorrenciaPCP('${a.id}')" style="gap:5px">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            Questionar
-          </button>
-          <button class="btn btn-verde btn-sm" style="flex:1;gap:5px" onclick="pcpLiberarProducao('${a.id}')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-            Liberar produção
-          </button>
-        </div>
-      </div>`;
-    }
-
-    // ── ABAS LIBERADAS / PRODUÇÃO / CONCLUÍDO ─────────────────
-    return `<div class="card" style="margin-bottom:10px">
+    const tag=a.status==='pedido'?'<span style="font-size:10px;background:var(--amarelo-bg);color:var(--amarelo);padding:2px 8px;border-radius:5px;font-weight:600">Aguardando</span>':a.status==='producao'?'<span style="font-size:10px;background:var(--azul-bg);color:#0C447C;padding:2px 8px;border-radius:5px;font-weight:600">Em Producao</span>':'<span style="font-size:10px;background:var(--verde-bg);color:var(--verde);padding:2px 8px;border-radius:5px;font-weight:600">Concluido</span>';
+    return `<div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:var(--azul)">${a.op_numero||a.id}</span>${tag}
+        <span style="font-size:13px;font-weight:700;font-family:var(--mono)">${a.op_numero||a.id}</span>${tag}
       </div>
-      <div style="font-size:14px;font-weight:500;margin-bottom:2px">${a.cliente||''}</div>
+      <div style="font-size:14px;font-weight:500;margin-bottom:2px">${a.cliente}</div>
       <div style="font-size:12px;color:var(--texto3);margin-bottom:10px">${(a.itens||[]).length} item(s) · R$ ${fmt(tot)}</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${temDesenho||nDesenhos?`<button class="btn btn-secundario btn-sm" onclick="pcpVerDesenhos('${a.id}')">Desenhos</button>`:''}
+      <div style="display:flex;gap:8px">
         <button class="btn btn-secundario btn-sm" onclick="pcpIrPlano('${a.id}')">Plano de corte</button>
         <button class="btn btn-primario btn-sm" onclick="pcpIrEtiq('${a.id}')">Etiquetas</button>
       </div>
@@ -7082,85 +6956,55 @@ async function pcpLiberarProducao(atdId){
   const op=PCP.ops.find(a=>a.id===atdId);
   if(!op)return;
   op.status='producao';
-  if(S.atendimentos[atdId]) S.atendimentos[atdId].status='producao';
+  if(S.atendimentos[atdId])S.atendimentos[atdId].status='producao';
   try{
     await supa.from('atendimentos').update({status:'producao'}).eq('id',atdId);
     await supa.from('atividades').insert({
-      usuario_id:S.vendedor?.id||null,atd_id:atdId,
-      tipo:'producao',cliente:op.cliente||'',
-      detalhe:`Liberado pelo PCP · ${hora()}`,hora:hora()
+      usuario_id:S.vendedor?.id||null,atd_id:atdId,tipo:'producao',
+      cliente:op.cliente||'',detalhe:'Liberado pelo PCP',hora:hora()
     });
   }catch(e){console.warn('pcpLiberarProducao:',e);}
   renderFilaProducao();
   pcpRenderOps();
-  // Feedback inline
-  const el=document.querySelector(`[onclick="pcpLiberarProducao('${atdId}')"]`);
-  if(el){el.textContent='✓ Liberada';el.disabled=true;el.style.opacity='.6';}
 }
 
 // ── PCP: Visualizar desenhos da OP ───────────────────────────────
 function pcpVerDesenhos(atdId){
-  const op=PCP.ops.find(a=>a.id===atdId);
-  if(!op)return;
-  const desenhos=op.desenhos||S.atendimentos[atdId]?.desenhos||[];
-  if(!desenhos.length){alert('Nenhum desenho anexado nesta OP.');return;}
-  // Abrir cada desenho em nova aba
+  const desenhos=(PCP.ops.find(a=>a.id===atdId)?.desenhos)||S.atendimentos[atdId]?.desenhos||[];
+  if(!desenhos.length){alert('Nenhum desenho anexado.');return;}
   desenhos.forEach((d,i)=>{
-    const url=d.dataUrl||d.storagePath;
-    if(!url)return;
-    const w=window.open();
-    if(!w)return;
-    const isImg=d.tipo?.startsWith('image/')||url.startsWith('data:image')||url.match(/\.(jpg|jpeg|png|webp)$/i);
-    if(isImg){
-      w.document.write(`<html><head><title>${d.nome||'Desenho '+(i+1)}</title></head><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${url}" style="max-width:100%;max-height:100vh;object-fit:contain"/></body></html>`);
-    } else {
-      w.document.write(`<html><head><title>${d.nome||'Arquivo '+(i+1)}</title></head><body style="margin:0"><embed src="${url}" width="100%" height="100%" type="${d.tipo||'application/pdf'}"/></body></html>`);
-    }
+    const url=d.dataUrl||d.storagePath;if(!url)return;
+    const w=window.open();if(!w)return;
+    const isImg=d.tipo?.startsWith('image/')||url.match(/\.(jpg|jpeg|png|webp)$/i);
+    const body=isImg
+      ?`<img src="${url}" style="max-width:100%;max-height:100vh;object-fit:contain">`
+      :`<embed src="${url}" width="100%" height="100%" type="${d.tipo||'application/pdf'}"/>`;
+    w.document.write(`<html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh">${body}</body></html>`);
     w.document.close();
   });
 }
 
-// ── PCP: Abrir questionamento / ocorrência para o interno ────────
+// ── PCP: Registrar questionamento ────────────────────────────────
 function pcpAbrirOcorrenciaPCP(atdId){
-  const op=PCP.ops.find(a=>a.id===atdId);
-  if(!op)return;
-  // Reusar modal de ocorrência existente adaptado para contexto PCP
-  const texto=prompt(`Questionamento para OP ${op.op_numero||atdId}:\n\nDescreva a dúvida ou pendência:`);
+  const op=PCP.ops.find(a=>a.id===atdId);if(!op)return;
+  const texto=prompt('Questionamento OP '+((op.op_numero||atdId))+'. Descreva a pendencia:');
   if(!texto||!texto.trim())return;
-  pcpRegistrarOcorrenciaPCP(atdId,texto.trim(),op);
-}
-
-async function pcpRegistrarOcorrenciaPCP(atdId,texto,op){
-  const hora_=hora();
-  // Adicionar ocorrência no estado local
-  const atd=S.atendimentos[atdId]||(S.atendimentos[atdId]={itens:[]});
-  if(!atd.itens)atd.itens=[];
-  const primeiroItem=atd.itens[0]||(op.itens||[])[0]||{id:'pcp',descricao:'Geral'};
-  if(!primeiroItem.ocorrencias)primeiroItem.ocorrencias=[];
-  primeiroItem.ocorrencias.push({
-    tipo:'Dúvida PCP',texto,etapa:'Validação PCP',
-    op:S.vendedor?.nome||'PCP',hora:hora_,status:'aberta'
-  });
-  try{
-    await supa.from('ocorrencias').insert({
-      atd_id:atdId,item_id:primeiroItem.id||null,
-      tipo:'Dúvida PCP',texto,etapa:'Validação PCP',
-      operador:S.vendedor?.nome||'PCP',
-      usuario_id:S.vendedor?.id||null,hora:hora_,status:'aberta'
-    });
-  }catch(e){console.warn('pcpRegistrarOcorrenciaPCP:',e);}
-  // Mostrar alerta no card
-  const cards=document.querySelectorAll('#pcp-ops-lista .card');
-  cards.forEach(card=>{
-    if(card.innerHTML.includes(atdId)||card.innerHTML.includes(op.op_numero||'')){
-      const d=document.createElement('div');
-      d.className='alerta alerta-warn';d.style.marginTop='8px';
-      d.innerHTML=`<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-        Questionamento registrado — visível para o interno`;
-      card.appendChild(d);
-    }
-  });
-  pcpRenderOps();
+  (async()=>{
+    const h_=hora();
+    const atd=S.atendimentos[atdId]||(S.atendimentos[atdId]={itens:[]});
+    if(!atd.itens)atd.itens=[];
+    const it=(atd.itens[0]||(op.itens||[])[0])||{id:'pcp',descricao:'Geral'};
+    if(!it.ocorrencias)it.ocorrencias=[];
+    it.ocorrencias.push({tipo:'Dúvida PCP',texto:texto.trim(),etapa:'Validação PCP',op:S.vendedor?.nome||'PCP',hora:h_});
+    try{
+      await supa.from('ocorrencias').insert({
+        atd_id:atdId,item_id:it.id||null,tipo:'Dúvida PCP',
+        texto:texto.trim(),etapa:'Validação PCP',
+        operador:S.vendedor?.nome||'PCP',usuario_id:S.vendedor?.id||null,hora:h_
+      });
+    }catch(e){console.warn('pcpAbrirOcorrenciaPCP:',e);}
+    pcpRenderOps();
+  })();
 }
 
 function pcpIrPlano(id){ OPT._preselOp=id; ir('tela-pcp-optmax'); }
@@ -7865,40 +7709,31 @@ async function pcpMkEtiqHTML(op,item,lote,num){
   const etapas=pcpGetPipeline(item),et=item.etapa_atual||0;
   let qrImg='';
   if(typeof QRCode!=='undefined'){try{qrImg=await QRCode.toDataURL(`${location.origin}?atd=${op.id}&item=${item.id}`,{width:64,margin:1,color:{dark:'#0F2547',light:'#fff'}});}catch(e){}}
-  const paralelogramas=`<svg width="26" height="22" viewBox="0 0 60 52" style="display:inline-block;vertical-align:middle">
+  const svgLogoPara=`<svg width="24" height="21" viewBox="0 0 60 52" style="display:inline-block;vertical-align:middle">
     <defs>
-      <linearGradient id="etq-lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#B8C4D0"/><stop offset="100%" stop-color="#6B7A8D"/></linearGradient>
-      <linearGradient id="etq-lb" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#A8DFFB"/><stop offset="100%" stop-color="#3AACDF"/></linearGradient>
-      <linearGradient id="etq-lc" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#29C4F6"/><stop offset="100%" stop-color="#0077B6"/></linearGradient>
+      <linearGradient id="etq-lg${item.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#B8C4D0"/><stop offset="100%" stop-color="#6B7A8D"/></linearGradient>
+      <linearGradient id="etq-lb${item.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#A8DFFB"/><stop offset="100%" stop-color="#3AACDF"/></linearGradient>
+      <linearGradient id="etq-lc${item.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#29C4F6"/><stop offset="100%" stop-color="#0077B6"/></linearGradient>
     </defs>
-    <polygon points="38,6 52,6 44,46 30,46" fill="url(#etq-lg)" opacity="0.85"/>
-    <polygon points="25,6 39,6 31,46 17,46" fill="url(#etq-lb)" opacity="0.92"/>
-    <polygon points="12,6 26,6 18,46 4,46" fill="url(#etq-lc)"/>
+    <polygon points="38,6 52,6 44,46 30,46" fill="url(#etq-lg${item.id})" opacity="0.85"/>
+    <polygon points="25,6 39,6 31,46 17,46" fill="url(#etq-lb${item.id})" opacity="0.92"/>
+    <polygon points="12,6 26,6 18,46 4,46" fill="url(#etq-lc${item.id})"/>
   </svg>`;
+  const badgeLote=lote?`<span style="font-size:8px;background:#FAEEDA;color:#633806;padding:1px 5px;border-radius:3px;font-weight:700">LOTE ${item.qty}pcs</span>`:`<span style="font-size:8px;color:rgba(255,255,255,.55)">Peca ${num}/${item.qty}</span>`;
+  const badgeDesenho=item.usinagem_desenho?`<span style="font-size:8px;background:#E2EBF8;color:#0C447C;padding:1px 5px;border-radius:3px;font-weight:700">Desenho</span>`:'';
   return `<div class="pcp-etiq-wrap" style="position:relative">
     <div style="background:#0F2547;margin:-8px -8px 8px -8px;padding:6px 8px;border-radius:5px 5px 0 0;display:flex;align-items:center;justify-content:space-between">
-      <div style="display:flex;align-items:center;gap:5px">
-        ${paralelogramas}
-        <span style="font-size:9px;font-weight:700;color:#fff;letter-spacing:.04em">MAX VIDROS</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:5px">
-        ${item.usinagem_desenho?`<span style="font-size:8px;background:#E2EBF8;color:#0C447C;padding:1px 5px;border-radius:3px;font-weight:700">Desenho</span>`:''}
-        ${lote?`<span style="font-size:8px;background:#FAEEDA;color:#633806;padding:1px 5px;border-radius:3px;font-weight:700">LOTE ${item.qty}pcs</span>`:
-               `<span style="font-size:8px;color:rgba(255,255,255,.55)">Peça ${num}/${item.qty}</span>`}
-        <span style="font-size:8px;color:rgba(255,255,255,.45);font-family:var(--mono)">${op.op_numero||op.id}</span>
-      </div>
+      <div style="display:flex;align-items:center;gap:5px">${svgLogoPara}<span style="font-size:9px;font-weight:700;color:#fff;letter-spacing:.04em">MAX VIDROS</span></div>
+      <div style="display:flex;align-items:center;gap:4px">${badgeDesenho}${badgeLote}<span style="font-size:8px;color:rgba(255,255,255,.45);font-family:var(--mono)">${op.op_numero||op.id}</span></div>
     </div>
     <div style="display:flex;gap:8px">
       <div style="flex:1">
         <div style="font-size:11px;font-weight:600;color:var(--texto);margin-bottom:2px">${item.descricao}</div>
-        <div style="font-size:16px;font-weight:700;color:var(--azul);margin-bottom:2px;font-family:var(--mono)">${item.larg}×${item.alt}mm</div>
+        <div style="font-size:16px;font-weight:700;color:var(--azul);margin-bottom:2px;font-family:var(--mono)">${item.larg}x${item.alt}mm</div>
         <div style="font-size:10px;color:var(--texto3);margin-bottom:6px">${op.cliente||''}</div>
         <div style="display:flex;flex-wrap:wrap;gap:2px">${etapas.map((e,i)=>`<span style="font-size:7px;padding:2px 5px;border-radius:3px;${i===et?'background:var(--azul);color:#fff;font-weight:600':i<et?'background:var(--verde-bg);color:var(--verde)':'background:var(--bg);border:.5px solid var(--borda);color:var(--texto3)'}">${e}</span>`).join('')}</div>
       </div>
-      ${qrImg?`<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px">
-        <img src="${qrImg}" style="width:54px;height:54px;border-radius:4px;border:.5px solid var(--borda)">
-        <div style="font-size:6px;color:var(--texto3);font-family:var(--mono)">${op.id}</div>
-      </div>`:''}
+      ${qrImg?`<div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px"><img src="${qrImg}" style="width:54px;height:54px;border-radius:4px;border:.5px solid var(--borda)"><div style="font-size:6px;color:var(--texto3);font-family:var(--mono)">${op.id}</div></div>`:''}
     </div>
   </div>`;
 }
@@ -7909,115 +7744,34 @@ async function pcpEtiqImprimir(){
   if(typeof window.jspdf==='undefined'){alert('PDF carregando, tente novamente.');return;}
   const{jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
-  // Layout: 3 colunas × 3 linhas por folha A4 landscape
-  const EW=92,EH=76,MX=6,MY=6,EX=4,EY=4,COL=3;
+  const EW=100,EH=80,MX=5,MY=5,EX=5,EY=5,COL=3;
   const totPcs=(op.itens||[]).reduce((s,i)=>s+(i.qty||1),0),emLote=totPcs>10,etqs=[];
   (op.itens||[]).forEach(it=>{if(emLote&&it.qty>1)etqs.push({op,it,lote:true,n:1});else for(let q=0;q<(it.qty||1);q++)etqs.push({op,it,lote:false,n:q+1});});
-
-  // Helper: paralelogramos jsPDF (mesmos da tela de login)
-  function _etqLogo(doc,x,y){
-    const shape=[[4.9,0],[-2.8,14],[-4.9,0]];
-    const s=0.28; // escala reduzida para etiqueta
-    const ss=[[4.9*s,0],[-2.8*s,14*s],[-4.9*s,0]];
-    doc.setFillColor(20,157,214);   doc.lines(ss,x+3,    y,[1,1],'F',true);
-    doc.setFillColor(113,197,237);  doc.lines(ss,x+5.5,  y,[1,1],'F',true);
-    doc.setFillColor(145,159,174);  doc.lines(ss,x+7.8,  y,[1,1],'F',true);
-  }
-
   for(let idx=0;idx<etqs.length;idx++){
     const{op:o,it,lote,n}=etqs[idx];
     const pos=idx%(COL*3),col=pos%COL,row=Math.floor(pos/COL);
     if(pos===0&&idx>0)doc.addPage();
-    const x=MX+col*(EW+EX),y=MY+row*(EH+EY);
-    const etapas=pcpGetPipeline(it),et=it.etapa_atual||0;
-
-    // Borda da etiqueta
-    doc.setDrawColor(200,200,200);doc.setLineWidth(.3);doc.roundedRect(x,y,EW,EH,2,2,'S');
-
-    // ── Header azul ──────────────────────────────────────────────
+    const x=MX+col*(EW+EX),y=MY+row*(EH+EY),etapas=pcpGetPipeline(it),et=it.etapa_atual||0;
+    doc.setDrawColor(15,37,71);doc.setLineWidth(.5);doc.roundedRect(x,y,EW,EH,2,2,'S');
+    // Header azul com paralelogramos
     doc.setFillColor(15,37,71);doc.roundedRect(x,y,EW,11,2,2,'F');doc.rect(x,y+7,EW,4,'F');
-
-    // Paralelogramos no header
-    _etqLogo(doc,x+2,y+1.5);
-
-    // Nome empresa
-    doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(8);
-    doc.text('MAX VIDROS',x+12,y+7.5);
-
-    // Badge lote ou peça (centro)
-    if(lote){
-      doc.setFillColor(250,238,218);doc.roundedRect(x+EW/2-14,y+2,28,5,1,1,'F');
-      doc.setTextColor(186,117,23);doc.setFontSize(6.5);doc.setFont('helvetica','bold');
-      doc.text(`LOTE ${it.qty}pcs`,x+EW/2,y+5.5,{align:'center'});
-    } else {
-      doc.setTextColor(160,180,220);doc.setFont('helvetica','normal');doc.setFontSize(6.5);
-      doc.text(`Peça ${n}/${it.qty}`,x+EW/2,y+5.5,{align:'center'});
-    }
-
-    // OP número (direita)
-    doc.setTextColor(160,180,220);doc.setFont('helvetica','normal');doc.setFontSize(6.5);
-    doc.text(o.op_numero||o.id,x+EW-3,y+7.5,{align:'right'});
-
-    // Badge Desenho se necessário
-    if(it.usinagem_desenho){
-      doc.setFillColor(226,235,248);doc.roundedRect(x+EW-22,y+2,20,5,1,1,'F');
-      doc.setTextColor(12,68,124);doc.setFontSize(6);doc.setFont('helvetica','bold');
-      doc.text('Desenho',x+EW-12,y+5.5,{align:'center'});
-    }
-
-    // ── Corpo ─────────────────────────────────────────────────────
-    // Descrição
-    doc.setTextColor(15,37,71);doc.setFont('helvetica','bold');doc.setFontSize(7.5);
-    doc.text((it.descricao||'').substring(0,38),x+3,y+18);
-
-    // Dimensão em destaque
-    doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(15,37,71);
-    doc.text(`${it.larg}×${it.alt}mm`,x+3,y+29);
-
-    // Cliente
-    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(130,130,130);
-    doc.text((o.cliente||'').substring(0,32),x+3,y+35);
-
-    // ── Pipeline de etapas ────────────────────────────────────────
-    let ex=x+3;
-    etapas.forEach((e,i)=>{
-      const tw=doc.getTextWidth(e)+3;
-      if(ex>x+EW-4)return;
-      if(i===et){
-        doc.setFillColor(15,37,71);doc.roundedRect(ex,y+38,tw,5,1,1,'F');
-        doc.setTextColor(255,255,255);
-      } else if(i<et){
-        doc.setFillColor(225,245,238);doc.roundedRect(ex,y+38,tw,5,1,1,'F');
-        doc.setTextColor(15,110,86);
-      } else {
-        doc.setFillColor(244,243,239);doc.roundedRect(ex,y+38,tw,5,1,1,'F');
-        doc.setTextColor(160,160,160);
-      }
-      doc.setFontSize(5.5);doc.setFont('helvetica',i===et?'bold':'normal');
-      doc.text(e,ex+1.5,y+41.5);
-      ex+=tw+2;
-    });
-
-    // Linha separadora antes do QR
-    doc.setDrawColor(240,240,240);doc.setLineWidth(.3);
-    doc.line(x+3,y+EH-24,x+EW-3,y+EH-24);
-
-    // Lote da chapa (info interna, canto inferior esquerdo)
-    const loteInfo=(o.lote||o.itens?.[0]?.cod_lote||'');
-    if(loteInfo){
-      doc.setFont('helvetica','normal');doc.setFontSize(5.5);doc.setTextColor(180,180,180);
-      doc.text(`NF: ${loteInfo}`,x+3,y+EH-4);
-    }
-
-    // QR Code (canto inferior direito)
-    if(typeof QRCode!=='undefined'){
-      try{
-        const qrData=await QRCode.toDataURL(`${location.origin}?atd=${o.id}&item=${it.id}`,{width:128,margin:1,color:{dark:'#0F2547',light:'#ffffff'}});
-        doc.addImage(qrData,'PNG',x+EW-22,y+EH-23,19,19);
-      }catch(e){}
-    }
+    const _ss=[[4.9*0.28,0],[-2.8*0.28,14*0.28],[-4.9*0.28,0]];
+    doc.setFillColor(20,157,214);doc.lines(_ss,x+2,y+1.5,[1,1],'F',true);
+    doc.setFillColor(113,197,237);doc.lines(_ss,x+4.3,y+1.5,[1,1],'F',true);
+    doc.setFillColor(145,159,174);doc.lines(_ss,x+6.5,y+1.5,[1,1],'F',true);
+    doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.text('MAX VIDROS',x+10,y+7.5);
+    if(lote){doc.setFillColor(250,238,218);doc.roundedRect(x+EW/2-13,y+2,26,5,1,1,'F');doc.setTextColor(186,117,23);doc.setFontSize(6);doc.setFont('helvetica','bold');doc.text(`LOTE ${it.qty}pcs`,x+EW/2,y+5.5,{align:'center'});}
+    else{doc.setTextColor(160,180,220);doc.setFont('helvetica','normal');doc.setFontSize(6);doc.text(`Peca ${n}/${it.qty}`,x+EW/2,y+5.5,{align:'center'});}
+    doc.setTextColor(160,180,220);doc.setFont('helvetica','normal');doc.setFontSize(6);doc.text(o.op_numero||o.id,x+EW-2,y+7.5,{align:'right'});
+    if(it.usinagem_desenho){doc.setFillColor(226,235,248);doc.roundedRect(x+EW-20,y+2,18,5,1,1,'F');doc.setTextColor(12,68,124);doc.setFontSize(5.5);doc.setFont('helvetica','bold');doc.text('Desenho',x+EW-11,y+5.5,{align:'center'});}
+    // Corpo
+    doc.setTextColor(15,37,71);doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.text((it.descricao||'').substring(0,38),x+3,y+18);
+    doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(15,37,71);doc.text(`${it.larg}x${it.alt}mm`,x+3,y+29);
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(130,130,130);doc.text((o.cliente||'').substring(0,32),x+3,y+35);
+    let ex=x+3;etapas.forEach((e,i)=>{const tw=doc.getTextWidth(e)+3;if(ex>x+EW-4)return;if(i===et){doc.setFillColor(15,37,71);doc.roundedRect(ex,y+38,tw,5,1,1,'F');doc.setTextColor(255,255,255);}else if(i<et){doc.setFillColor(225,245,238);doc.roundedRect(ex,y+38,tw,5,1,1,'F');doc.setTextColor(15,110,86);}else{doc.setFillColor(244,243,239);doc.roundedRect(ex,y+38,tw,5,1,1,'F');doc.setTextColor(160,160,160);}doc.setFontSize(5.5);doc.setFont('helvetica',i===et?'bold':'normal');doc.text(e,ex+1.5,y+41.5);ex+=tw+2;});
+    doc.setDrawColor(240,240,240);doc.setLineWidth(.3);doc.line(x+3,y+EH-24,x+EW-3,y+EH-24);
+    if(typeof QRCode!=='undefined'){try{const qrData=await QRCode.toDataURL(`${location.origin}?atd=${o.id}&item=${it.id}`,{width:128,margin:1,color:{dark:'#0F2547',light:'#ffffff'}});doc.addImage(qrData,'PNG',x+EW-22,y+EH-23,19,19);}catch(e){}}
   }
-
   doc.save(`Etiquetas_${op.op_numero||op.id}.pdf`);
   try{await supa.from('etiquetas').insert(etqs.map(q=>({atd_id:q.op.id,item_id:q.it.id,tipo:q.lote?'lote':'individual',qty_pecas:q.lote?q.it.qty:1,qr_payload:`${location.origin}?atd=${q.op.id}&item=${q.it.id}`,gerado_por:S.vendedor?.id})));}catch(e){}
 }
