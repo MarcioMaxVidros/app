@@ -2926,8 +2926,8 @@ async function abrirApontamento(atdNum){
       const { data } = await supa.from('desenhos').select('*').eq('atd_id', atdNum);
       if(data && data.length){
         atd.desenhos = data.map(d=>({
-          dataUrl: d.data_url, nome: d.nome, tipo: d.tipo,
-          adicionadoPor: d.adicionado_por, hora: d.hora
+          dataUrl: _desenhoUrl(d), storagePath: d.storage_path||null,
+          nome: d.nome, tipo: d.tipo, adicionadoPor: d.adicionado_por, hora: d.hora
         }));
       }
     } catch(e){ console.warn('desenhos:', e); }
@@ -3548,7 +3548,7 @@ async function syncDados(){
         prazoMaxDias:a.prazo_max_dias||null,
         op:a.op_numero?{numero:a.op_numero,efetivadoPor:a.op_efetivado_por,efetivadoEm:a.op_efetivado_em}:null,
         recusa:a.recusa_motivo?{motivo:a.recusa_motivo,recusadoPor:a.recusa_por,recusadoEm:a.recusa_em}:null,
-        desenhos:(a.desenhos||[]).map(d=>({dataUrl:d.data_url||null,nome:d.nome,tipo:d.tipo,adicionadoPor:d.adicionado_por,hora:d.hora}))
+        desenhos:(a.desenhos||[]).map(d=>({dataUrl:_desenhoUrl(d),storagePath:d.storage_path||null,nome:d.nome,tipo:d.tipo,adicionadoPor:d.adicionado_por,hora:d.hora}))
       };
     });
     // Atualizar UI da tela ativa
@@ -3666,7 +3666,8 @@ async function carregarDadosBD(usuario){
         op: a.op_numero ? { numero: a.op_numero, efetivadoPor: a.op_efetivado_por, efetivadoEm: a.op_efetivado_em } : null,
         recusa: a.recusa_motivo ? { motivo: a.recusa_motivo, recusadoPor: a.recusa_por, recusadoEm: a.recusa_em } : null,
         desenhos: (a.desenhos||[]).map(d=>({
-          dataUrl: d.data_url||null,
+          dataUrl: _desenhoUrl(d),
+          storagePath: d.storage_path||null,
           nome: d.nome,
           tipo: d.tipo,
           adicionadoPor: d.adicionado_por,
@@ -3924,6 +3925,12 @@ function _comprimirImagem(file,maxW,maxH,q){
     img.onerror=()=>{URL.revokeObjectURL(url);resolve(file);};
     img.src=url;
   });
+}
+// Reconstrói a URL de um desenho — prioriza data_url (base64), senão usa storage_path
+function _desenhoUrl(d){
+  if(d.data_url) return d.data_url;
+  if(d.storage_path) return supa.storage.from('desenhos').getPublicUrl(d.storage_path).data.publicUrl;
+  return null;
 }
 async function _uploadDesenho(file,atdNum){
   const ext=(file.name||'img').split('.').pop()||'jpg';
