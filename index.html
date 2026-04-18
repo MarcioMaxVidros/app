@@ -7056,11 +7056,19 @@ function optIniciar(){
 
 function optVoltar(){
   if(OPT.step===0){ir('tela-pcp-ops');return;}
+  // Do plano (step 2) volta para o lote (step 1)
+  if(OPT.step>=2){
+    OPT.step=1;
+    const s=document.getElementById('opt-sub');if(s)s.textContent=`${OPT.mp?.esp||''} · ${OPT.mp?.cor||''}`;
+    const t=document.getElementById('opt-tit');if(t)t.textContent='OptMAX Plus';
+    const pp=document.getElementById('opt-btn-pp');if(pp)pp.style.display='inline-flex';
+    optRender();return;
+  }
   OPT.step--;
-  const subs=['Selecione a matéria-prima','Monte o lote','Selecione o tamanho da chapa'];
+  const subs=['Selecione a matéria-prima','Monte o lote'];
   const t=document.getElementById('opt-tit'),s=document.getElementById('opt-sub'),pp=document.getElementById('opt-btn-pp');
   if(t)t.textContent='OptMAX Plus';if(s)s.textContent=subs[OPT.step]||'';
-  if(pp)pp.style.display=OPT.step===2?'inline-flex':'none';
+  if(pp)pp.style.display='none';
   if(OPT.step===0){OPT.mp=null;OPT.opsSel=new Set();}
   optRender();
 }
@@ -7071,7 +7079,10 @@ function optScrollPP(){
 }
 
 function optRender(){
-  [optR0,optR1,optR2,optR3][OPT.step]?.();
+  // Steps: 0=MP, 1=lote, 2=plano (optR3), step>=3 também vai ao plano
+  if(OPT.step===0)optR0();
+  else if(OPT.step===1)optR1();
+  else optR3();
 }
 
 // Pré-selecionar OP vinda da tela de OPs
@@ -7084,7 +7095,7 @@ function optPreselOP(atdId){
   const cor=(it.descricao||'').match(/(Incolor|Fumê|Fume|Verde|Bronze|Refletivo)/i)?.[1]||'Incolor';
   const mpMatch=PCP.estoque.find(m=>m.tipo===tipo&&m.espessura===esp);
   if(!mpMatch)return;
-  OPT.mp={tipo,esp,cor};
+  OPT.mp={...mpMatch,esp,cor};
   OPT.opsDisp=[op];OPT.opsSel=new Set([atdId]);
   OPT.step=1;
   const s=document.getElementById('opt-sub');if(s)s.textContent=`${esp} ${cor}`;
@@ -7094,27 +7105,9 @@ function optPreselOP(atdId){
 
 // ── STEP 0: Selecionar MP ─────────────────────────────────────────────
 function optR0(){
-  // Agrupar PCP.estoque por tipo+esp+cor
   const estoqueRef=PCP.estoque&&PCP.estoque.length?PCP.estoque:[];
-  const grupos={};
-  estoqueRef.forEach(m=>{
-    const k=`${m.tipo}|${m.espessura}|${m.cor||'Incolor'}`;
-    if(!grupos[k])grupos[k]={tipo:m.tipo,esp:m.espessura,cor:m.cor||'Incolor',saldo:0,tam:0};
-    grupos[k].saldo+=m.saldo||0;grupos[k].tam++;
-  });
-  // Fallback: se estoque vazio, usar tipos dos itens das OPs
-  if(!Object.keys(grupos).length){
-    PCP.ops.filter(a=>a.status==='pedido').forEach(op=>{
-      (op.itens||[]).forEach(it=>{
-        const tipo=it.descricao?.includes('Laminado')?'Vidro Laminado':it.descricao?.includes('Temperado')?'Vidro Temperado':'Vidro Comum';
-        const esp=(it.descricao||'').match(/(\d+\+?\d*mm)/)?.[1]||'6mm';
-        const k=`${tipo}|${esp}|Incolor`;
-        if(!grupos[k])grupos[k]={tipo,esp,cor:'Incolor',saldo:0,tam:1};
-      });
-    });
-  }
   const porTipo={};
-  Object.values(grupos).forEach(g=>{if(!porTipo[g.tipo])porTipo[g.tipo]=[];porTipo[g.tipo].push(g);});
+  estoqueRef.forEach(m=>{if(!porTipo[m.tipo])porTipo[m.tipo]=[];porTipo[m.tipo].push(m);});
 
   let h=`<div class="card">
     <div class="card-titulo">Configuração</div>
@@ -7129,25 +7122,28 @@ function optR0(){
   if(!Object.keys(porTipo).length){
     h+=`<div style="text-align:center;padding:40px 0;color:var(--texto3);font-size:13px">Nenhuma matéria-prima cadastrada no estoque.</div>`;
   } else {
-    Object.entries(porTipo).forEach(([tipo,gs])=>{
+    Object.entries(porTipo).forEach(([tipo,mps])=>{
       h+=`<p class="sec-label">${tipo}</p>`;
-      gs.forEach(g=>{
-        const temOPs=PCP.ops.some(o=>['aguardando_pcp','pedido'].includes(o.status)&&(o.itens||[]).some(i=>(i.descricao||'').includes(g.esp)));
-        const dot=g.saldo>0?'var(--verde)':'var(--amarelo)';
-        h+=`<div class="card" style="margin-bottom:8px;cursor:pointer" onclick="optSelMP('${g.tipo}|${g.esp}|${g.cor}')">
+      mps.forEach(m=>{
+        const L=m.larg_mm||m.l||0,A=m.alt_mm||m.a||0;
+        const saldo=m.saldo||0;
+        const dot=saldo>0?'var(--verde)':'var(--amarelo)';
+        const temOPs=PCP.ops.some(o=>['aguardando_pcp','pedido'].includes(o.status)&&(o.itens||[]).some(i=>(i.descricao||'').includes(m.espessura)));
+        const loteTag=m.lotes?.length?' · '+m.lotes[0]:(m.cod_lote?' · '+m.cod_lote:'');
+        const descLine=m.descricao?`<div style="font-size:10px;color:var(--texto3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.descricao}</div>`:'';
+        h+=`<div class="card" style="margin-bottom:8px;cursor:pointer;${saldo===0?'opacity:.6':''}" onclick="optSelMPById('${m.id}')">
           <div style="display:flex;align-items:center;gap:10px">
-            <div style="width:10px;height:10px;border-radius:50%;background:${dot};flex-shrink:0"></div>
-            <div style="flex:1">
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <span style="font-size:14px;font-weight:500">${g.esp} · ${g.cor}</span>
-                <span style="font-size:13px;font-weight:500;color:${g.saldo>0?'var(--azul)':'var(--vermelho)'}">${g.saldo} chapas</span>
+            <div style="width:10px;height:10px;border-radius:50%;background:${dot};flex-shrink:0;margin-top:1px"></div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+                <span style="font-size:14px;font-weight:500">${m.espessura} · ${m.cor||'Incolor'}</span>
+                <span style="font-size:13px;font-weight:600;flex-shrink:0;color:${saldo>0?'var(--azul)':'var(--vermelho)'}">${saldo} chapas</span>
               </div>
-              <div style="display:flex;justify-content:space-between;margin-top:3px">
-                <span style="font-size:11px;color:var(--texto3)">${g.tam} tamanho(s) · mix disponível</span>
-                ${temOPs?`<span style="font-size:9px;background:var(--azul-bg);color:#0C447C;padding:1px 6px;border-radius:4px;font-weight:600">OPs aguardando</span>`:''}
-              </div>
+              <div style="font-size:11px;font-family:var(--mono);color:var(--texto2);margin-top:2px">${L}×${A}mm${loteTag}</div>
+              ${descLine}
+              ${temOPs?`<div style="margin-top:4px"><span style="font-size:9px;background:var(--azul-bg);color:#0C447C;padding:1px 6px;border-radius:4px;font-weight:600">OPs aguardando</span></div>`:''}
             </div>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--texto3)" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--texto3)" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M9 18l6-6-6-6"/></svg>
           </div>
         </div>`;
       });
@@ -7156,16 +7152,20 @@ function optR0(){
   const ob=document.getElementById('opt-body');if(ob)ob.innerHTML=h;
 }
 
-function optSelMP(k){
-  const [tipo,esp,cor]=k.split('|');
-  OPT.mp={tipo,esp,cor};
+// Seleciona MP pelo id real — exibe entradas individuais por chapa como no estoque
+function optSelMPById(id){
+  const estoqueRef=PCP.estoque&&PCP.estoque.length?PCP.estoque:[];
+  const m=estoqueRef.find(x=>String(x.id)===String(id));if(!m)return;
+  const esp=m.espessura,cor=m.cor||'Incolor';
+  OPT.mp={...m,esp,cor};
   OPT.opsDisp=PCP.ops.filter(o=>['aguardando_pcp','pedido'].includes(o.status)&&(o.itens||[]).some(i=>(i.descricao||'').includes(esp)));
   OPT.opsSel=new Set();OPT.step=1;
-  const s=document.getElementById('opt-sub');if(s)s.textContent=`${esp} ${cor}`;
+  const s=document.getElementById('opt-sub');if(s)s.textContent=`${esp} · ${cor}`;
   const pp=document.getElementById('opt-btn-pp');if(pp)pp.style.display='inline-flex';
   optRender();
 }
-
+// alias legado
+function optSelMP(k){const[tipo,esp,cor]=k.split('|');const m=(PCP.estoque||[]).find(x=>x.tipo===tipo&&x.espessura===esp&&(x.cor||'Incolor')===cor);if(m)optSelMPById(String(m.id));}
 // ── STEP 1: OPs / Manual ──────────────────────────────────────────────
 function optR1(){
   const {tipo,esp,cor}=OPT.mp;
@@ -7302,10 +7302,8 @@ function optIrChapas(){
   }).sort((a,b)=>b.ap-a.ap);
   const semS=chapasMP.filter(m=>!(m.saldo>0));
   OPT._chapasData={comS,semS};
-  OPT.step=2;
-  const s=document.getElementById('opt-sub');if(s)s.textContent=`${esp} ${cor} · selecione o tamanho`;
-  const pp=document.getElementById('opt-btn-pp');if(pp)pp.style.display='inline-flex';
-  optR2();
+  // Vai direto ao plano usando a chapa selecionada no step 0
+  optGerarPlano(OPT.mp.id);
 }
 
 // Simulação rápida para ranquear chapas
@@ -7393,13 +7391,13 @@ function optR2(){
 function optGerarPlano(mpId){
   OPT.forcedRot={};
   const estoqueRef=PCP.estoque&&PCP.estoque.length?PCP.estoque:[];
-  const mp=estoqueRef.find(m=>m.id===mpId);if(!mp)return;
+  const mp=estoqueRef.find(m=>String(m.id)===String(mpId));if(!mp)return;
   OPT._mpSel=mp;
   const chapasDisp=estoqueRef.filter(m=>m.tipo===mp.tipo&&m.espessura===mp.espessura&&(m.cor||'Incolor')===(mp.cor||'Incolor')&&(m.saldo||0)>0);
   const res=optCalcMix(OPT.pecas,chapasDisp);
   const mixU={};res.chapas.forEach(c=>{const k=c.mp.id;if(!mixU[k])mixU[k]={mp:c.mp,n:0};mixU[k].n++;});
   OPT.resultado={chapas:res.chapas,restantes:res.restantes,mixUsado:Object.values(mixU)};
-  OPT.step=3;
+  OPT.step=2;
   const t=document.getElementById('opt-tit'),s=document.getElementById('opt-sub'),pp=document.getElementById('opt-btn-pp');
   const L=mp.larg_mm||mp.l||0,A=mp.alt_mm||mp.a||0;
   if(t)t.textContent='Plano de corte';if(s)s.textContent=`${L}×${A}mm · mix otimizado`;if(pp)pp.style.display='none';
