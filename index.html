@@ -7106,88 +7106,84 @@ function optPreselOP(atdId){
 // ── STEP 0: Selecionar MP ─────────────────────────────────────────────
 function optR0(){
   const estoqueRef=PCP.estoque&&PCP.estoque.length?PCP.estoque:[];
-  if(!OPT._filtTipo) OPT._filtTipo='';
-  if(!OPT._filtEsp)  OPT._filtEsp='';
+  if(OPT._filtTipo===undefined) OPT._filtTipo='';
+  if(OPT._filtEsp===undefined)  OPT._filtEsp='';
 
-  // Opções para os filtros
-  const tipos=[...new Set(estoqueRef.map(m=>m.tipo))].sort();
-  const esps=[...new Set(estoqueRef.filter(m=>!OPT._filtTipo||m.tipo===OPT._filtTipo).map(m=>m.espessura))]
-    .sort((a,b)=>parseFloat(a)-parseFloat(b));
+  const tipos=[...new Set(estoqueRef.map(function(m){return m.tipo;}))].sort();
+  const esps=[...new Set(estoqueRef.filter(function(m){return !OPT._filtTipo||m.tipo===OPT._filtTipo;}).map(function(m){return m.espessura;}))]
+    .sort(function(a,b){return parseFloat(a)-parseFloat(b);});
 
-  // Lista filtrada
   let lista=estoqueRef;
-  if(OPT._filtTipo) lista=lista.filter(m=>m.tipo===OPT._filtTipo);
-  if(OPT._filtEsp)  lista=lista.filter(m=>m.espessura===OPT._filtEsp);
+  if(OPT._filtTipo) lista=lista.filter(function(m){return m.tipo===OPT._filtTipo;});
+  if(OPT._filtEsp)  lista=lista.filter(function(m){return m.espessura===OPT._filtEsp;});
 
-  const tot=lista.length,bx=lista.filter(m=>m.saldo>0&&m.saldo<=3).length,ze=lista.filter(m=>m.saldo<=0).length;
+  const tot=lista.length,bx=lista.filter(function(m){return m.saldo>0&&m.saldo<=3;}).length,ze=lista.filter(function(m){return m.saldo<=0;}).length;
+  const grupos={};lista.forEach(function(m){if(!grupos[m.tipo])grupos[m.tipo]=[];grupos[m.tipo].push(m);});
 
-  // Grupos por tipo
-  const grupos={};lista.forEach(m=>{if(!grupos[m.tipo])grupos[m.tipo]=[];grupos[m.tipo].push(m);});
+  // ── Lapidado + filtros + resumo ──
+  const lapBg=OPT.lap?'var(--azul)':'rgba(0,0,0,.15)';
+  const lapX=OPT.lap?22:2;
+  const tipoOpts=tipos.map(function(t){return '<option value="'+t+'"'+(OPT._filtTipo===t?' selected':'')+'>'+t+'</option>';}).join('');
+  const espOpts=esps.map(function(e){return '<option value="'+e+'"'+(OPT._filtEsp===e?' selected':'')+'>'+e+'</option>';}).join('');
 
-  let h=`<div class="card" style="margin-bottom:12px">
-    <div class="card-titulo">Configuração de corte</div>
-    <div style="display:flex;align-items:center;justify-content:space-between">
-      <div><div style="font-size:13px;font-weight:500">Lapidado</div><div style="font-size:11px;color:var(--texto3)">+1,5 mm por lado em cada peça</div></div>
-      <button style="width:44px;height:24px;border-radius:12px;border:none;cursor:pointer;position:relative;flex-shrink:0;background:${OPT.lap?'var(--azul)':'rgba(0,0,0,.15)'};transition:background .2s" onclick="OPT.lap=!OPT.lap;optR0()">
-        <div style="position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:2px;left:${OPT.lap?22:2}px;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></div>
-      </button>
-    </div>
-  </div>
-
-  <div style="display:flex;gap:8px;margin-bottom:12px">
-    <select onchange="OPT._filtTipo=this.value;OPT._filtEsp='';optR0()" style="flex:1;height:36px;border-radius:8px;border:.5px solid var(--borda);background:var(--fundo);color:var(--texto);font-family:var(--font);font-size:12px;padding:0 10px;outline:none">
-      <option value="">Todos os tipos</option>
-      ${tipos.map(t=>`<option value="${t}" ${OPT._filtTipo===t?'selected':''}>${t}</option>`).join('')}
-    </select>
-    <select onchange="OPT._filtEsp=this.value;optR0()" style="flex:1;height:36px;border-radius:8px;border:.5px solid var(--borda);background:var(--fundo);color:var(--texto);font-family:var(--font);font-size:12px;padding:0 10px;outline:none">
-      <option value="">Todas esp.</option>
-      ${esps.map(e=>`<option value="${e}" ${OPT._filtEsp===e?'selected':''}>${e}</option>`).join('')}
-    </select>
-  </div>
-
-  <div style="display:flex;gap:8px;margin-bottom:14px">
-    <div class="resumo-item"><div class="resumo-num" style="color:var(--azul)">${tot}</div><div class="resumo-lbl">SKUs</div></div>
-    <div class="resumo-item"><div class="resumo-num" style="color:var(--amarelo)">${bx}</div><div class="resumo-lbl">Baixo</div></div>
-    <div class="resumo-item"><div class="resumo-num" style="color:var(--vermelho)">${ze}</div><div class="resumo-lbl">Sem estoque</div></div>
-  </div>`;
+  let h='<div class="card" style="margin-bottom:12px">'
+    +'<div class="card-titulo">Configuração de corte</div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between">'
+    +'<div><div style="font-size:13px;font-weight:500">Lapidado</div><div style="font-size:11px;color:var(--texto3)">+1,5 mm por lado em cada peça</div></div>'
+    +'<button style="width:44px;height:24px;border-radius:12px;border:none;cursor:pointer;position:relative;flex-shrink:0;background:'+lapBg+';transition:background .2s" onclick="OPT.lap=!OPT.lap;optR0()">'
+    +'<div style="position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:2px;left:'+lapX+'px;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></div>'
+    +'</button></div></div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:12px">'
+    +'<select onchange="OPT._filtTipo=this.value;OPT._filtEsp=\'\';optR0()" style="flex:1;height:36px;border-radius:8px;border:.5px solid var(--borda);background:var(--fundo);color:var(--texto);font-family:var(--font);font-size:12px;padding:0 10px;outline:none">'
+    +'<option value="">Todos os tipos</option>'+tipoOpts+'</select>'
+    +'<select onchange="OPT._filtEsp=this.value;optR0()" style="flex:1;height:36px;border-radius:8px;border:.5px solid var(--borda);background:var(--fundo);color:var(--texto);font-family:var(--font);font-size:12px;padding:0 10px;outline:none">'
+    +'<option value="">Todas esp.</option>'+espOpts+'</select></div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:14px">'
+    +'<div class="resumo-item"><div class="resumo-num" style="color:var(--azul)">'+tot+'</div><div class="resumo-lbl">SKUs</div></div>'
+    +'<div class="resumo-item"><div class="resumo-num" style="color:var(--amarelo)">'+bx+'</div><div class="resumo-lbl">Baixo</div></div>'
+    +'<div class="resumo-item"><div class="resumo-num" style="color:var(--vermelho)">'+ze+'</div><div class="resumo-lbl">Sem estoque</div></div>'
+    +'</div>';
 
   if(!lista.length){
-    h+=`<div style="text-align:center;padding:32px 0;color:var(--texto3);font-size:13px">Nenhuma chapa encontrada.</div>`;
+    h+='<div style="text-align:center;padding:32px 0;color:var(--texto3);font-size:13px">Nenhuma chapa encontrada.</div>';
   } else {
-    h+=Object.entries(grupos).map(([tipo,itens])=>`
-      <p class="sec-label">${tipo}</p>
-      ${itens.map(m=>{
-        const cor2=m.saldo<=0?'var(--vermelho)':m.saldo<=3?'var(--amarelo)':'var(--azul)';
-        const tag=m.saldo<=0
+    Object.entries(grupos).forEach(function(entry){
+      const tipo=entry[0],itens=entry[1];
+      h+='<p class="sec-label">'+tipo+'</p>';
+      itens.forEach(function(m){
+        const L=m.larg_mm||m.l||0,A=m.alt_mm||m.a||0;
+        const saldo=m.saldo||0;
+        const cor2=saldo<=0?'var(--vermelho)':saldo<=3?'var(--amarelo)':'var(--azul)';
+        const tag=saldo<=0
           ?'<span style="font-size:10px;background:var(--vermelho-bg);color:var(--vermelho);padding:1px 7px;border-radius:5px;font-weight:600">Sem estoque</span>'
-          :m.saldo<=3
+          :saldo<=3
           ?'<span style="font-size:10px;background:var(--amarelo-bg);color:var(--amarelo);padding:1px 7px;border-radius:5px;font-weight:600">Baixo</span>'
           :'';
-        const temOPs=PCP.ops.some(o=>['aguardando_pcp','pedido'].includes(o.status)&&(o.itens||[]).some(i=>(i.descricao||'').includes(m.espessura)));
-        return `<div class="card" style="margin-bottom:8px">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between">
-            <div style="flex:1;min-width:0">
-              <div style="font-size:10px;font-weight:600;color:var(--azul);letter-spacing:.04em;margin-bottom:2px">${m.espessura} · ${m.cor||'Incolor'}</div>
-              <div style="font-size:14px;font-weight:600">${m.larg_mm||m.l||0} x ${m.alt_mm||m.a||0} mm</div>
-              ${m.descricao?`<div style="font-size:11px;color:var(--texto3);margin-top:1px">${m.descricao}</div>`:''}
-              ${m.lotes?.length?`<div style="margin-top:5px">${m.lotes.map(l=>`<span style="font-size:9px;background:var(--azul-bg);color:#0C447C;padding:1px 6px;border-radius:4px;font-family:var(--mono);margin-right:3px">${l}</span>`).join('')}</div>`:''}
-              ${temOPs?`<div style="margin-top:5px"><span style="font-size:9px;background:var(--azul-bg);color:#0C447C;padding:1px 6px;border-radius:4px;font-weight:600">OPs aguardando</span></div>`:''}
-            </div>
-            <div style="text-align:right;margin-left:12px;flex-shrink:0">
-              <div style="font-size:28px;font-weight:700;color:${cor2};line-height:1">${m.saldo||0}</div>
-              <div style="font-size:10px;color:var(--texto3)">chapas</div>
-              ${tag}
-            </div>
-          </div>
-          <div style="margin-top:10px">
-            <button class="btn ${m.saldo>0?'btn-primario':'btn-secundario'} btn-sm" style="width:100%;height:40px" onclick="optSelMPById('${m.id}')">
-              ${m.saldo>0?'Selecionar para corte →':'Sem estoque — selecionar mesmo assim'}
-            </button>
-          </div>
-        </div>`;
-      }).join('')}`).join('');
+        const temOPs=PCP.ops.some(function(o){return ['aguardando_pcp','pedido'].includes(o.status)&&(o.itens||[]).some(function(i){return (i.descricao||'').includes(m.espessura);});});
+        const lotesHtml=m.lotes&&m.lotes.length
+          ?'<div style="margin-top:5px">'+m.lotes.map(function(l){return '<span style="font-size:9px;background:var(--azul-bg);color:#0C447C;padding:1px 6px;border-radius:4px;font-family:var(--mono);margin-right:3px">'+l+'</span>';}).join('')+'</div>'
+          :'';
+        const descHtml=m.descricao?'<div style="font-size:11px;color:var(--texto3);margin-top:1px">'+m.descricao+'</div>':'';
+        const opsHtml=temOPs?'<div style="margin-top:5px"><span style="font-size:9px;background:var(--azul-bg);color:#0C447C;padding:1px 6px;border-radius:4px;font-weight:600">OPs aguardando</span></div>':'';
+        const btnClass='btn '+(saldo>0?'btn-primario':'btn-secundario')+' btn-sm';
+        const btnLabel=saldo>0?'Selecionar para corte &rarr;':'Sem estoque &mdash; selecionar mesmo assim';
+        h+='<div class="card" style="margin-bottom:8px">'
+          +'<div style="display:flex;align-items:flex-start;justify-content:space-between">'
+          +'<div style="flex:1;min-width:0">'
+          +'<div style="font-size:10px;font-weight:600;color:var(--azul);letter-spacing:.04em;margin-bottom:2px">'+m.espessura+' &middot; '+(m.cor||'Incolor')+'</div>'
+          +'<div style="font-size:14px;font-weight:600">'+L+' x '+A+' mm</div>'
+          +descHtml+lotesHtml+opsHtml
+          +'</div>'
+          +'<div style="text-align:right;margin-left:12px;flex-shrink:0">'
+          +'<div style="font-size:28px;font-weight:700;color:'+cor2+';line-height:1">'+saldo+'</div>'
+          +'<div style="font-size:10px;color:var(--texto3)">chapas</div>'+tag
+          +'</div></div>'
+          +'<div style="margin-top:10px">'
+          +'<button class="'+btnClass+'" style="width:100%;height:40px" onclick="optSelMPById(\''+m.id+'\')">'+btnLabel+'</button>'
+          +'</div></div>';
+      });
+    });
   }
-
   const ob=document.getElementById('opt-body');if(ob)ob.innerHTML=h;
 }
 
