@@ -2093,6 +2093,29 @@ const S={
   atd4.dataEfetivacao='31/03/2026';
   atd4.prazoMaxDias=15;
   S.atendimentos['ATD-RAF-003']=atd4;
+  // ATDs aguardando validação PCP
+  S.atendimentos['ATD-RAF-004']={
+    cliente:{cnpj:'12.345.678/0001-90',razao:'Vidraçaria Central Ltda',contato:'Carlos Silva',tel:'(11) 9 8765-4321',email:'',segmento:'Vidraçaria',atd:'ATD-RAF-004',hora:'09:00'},
+    status:'aguardando_pcp',
+    op:{numero:'OP-RAF-004',efetivadoPor:'Ana Paula',efetivadoEm:'09:05'},
+    dataEfetivacao:null,prazoMaxDias:7,recusa:null,
+    itens:[
+      {id:6001,descricao:'Vidro Temperado 8mm · Incolor',detalhe:'4 pçs · 900×1800mm',larg:900,alt:1800,lR:900,aR:1800,qty:4,area:1.62,total:777.6,warn:false,etapaAtual:0,logEtapas:{},ocorrencias:[],usinagem:{modelado:false,desenho:false,tipos:[]}},
+      {id:6002,descricao:'Vidro Comum 6mm · Incolor',detalhe:'6 pçs · 600×900mm',larg:600,alt:900,lR:600,aR:900,qty:6,area:0.54,total:178.2,warn:false,etapaAtual:0,logEtapas:{},ocorrencias:[],usinagem:{modelado:false,desenho:false,tipos:[]}},
+    ],
+    tabela:'MX1',totalEnviado:955.8,horaEnvio:'09:05',dataEnvio:'17/04/2026',revisoes:0,desenhos:[]
+  };
+  S.atendimentos['ATD-RAF-005']={
+    cliente:{cnpj:'55.666.777/0001-88',razao:'Serralheria Pinheiros',contato:'Marcos Pinheiro',tel:'(11) 9 7654-3210',email:'',segmento:'Serralheria',atd:'ATD-RAF-005',hora:'10:30'},
+    status:'aguardando_pcp',
+    op:{numero:'OP-RAF-005',efetivadoPor:'Ana Paula',efetivadoEm:'10:35'},
+    dataEfetivacao:null,prazoMaxDias:5,recusa:null,
+    itens:[
+      {id:7001,descricao:'Vidro Temperado 8mm · Incolor',detalhe:'2 pçs · 1200×2100mm',larg:1200,alt:2100,lR:1200,aR:2100,qty:2,area:2.52,total:1209.6,warn:false,etapaAtual:0,logEtapas:{},ocorrencias:[],usinagem:{modelado:true,desenho:true,tipos:['Furo','Recorte']}},
+      {id:7002,descricao:'Vidro Laminado 6+6mm · Incolor',detalhe:'3 pçs · 800×1200mm',larg:800,alt:1200,lR:800,aR:1200,qty:3,area:0.96,total:829.8,warn:false,etapaAtual:0,logEtapas:{},ocorrencias:[],usinagem:{modelado:false,desenho:false,tipos:[]}},
+    ],
+    tabela:'MX2',totalEnviado:2039.4,horaEnvio:'10:35',dataEnvio:'17/04/2026',revisoes:0,desenhos:[]
+  };
   // ATDs do vendedor interno Carlos — follow-up "Meus"
   S.atendimentos['ATD-CAR-001']={
     cliente:{cnpj:'22.333.444/0001-55',razao:'Alumínio Express Ltda',contato:'Roberto Faria',tel:'(11) 9 3322-1100',email:'roberto@aluminioexpress.com.br',segmento:'Serralheria',atd:'ATD-CAR-001',hora:'08:30'},
@@ -3561,7 +3584,7 @@ async function syncDados(){
     if(S.perfil==='pcp'||S.perfil==='admin'){
       const ops = atds.filter(a=>['aguardando_pcp','pedido','producao','concluido'].includes(a.status));
       if(ops.length){
-        PCP.ops = ops.map(a=>({
+        const newOps = ops.map(a=>({
           ...a,
           cliente: a.clientes?.razao||a.id,
           itens:(a.itens_atd||[]).map(it=>({
@@ -3571,6 +3594,10 @@ async function syncDados(){
             etapa_atual: _calcEtapaAtual(a.etapas_producao||[], it.id)
           }))
         }));
+        // Preservar aguardando_pcp locais (ex: simulação) que não vieram do Supabase
+        const newIds = new Set(newOps.map(o=>o.id));
+        const sobreviventes = PCP.ops.filter(o=>o.status==='aguardando_pcp'&&!newIds.has(o.id));
+        PCP.ops = [...newOps, ...sobreviventes];
         pcpPopularSels();
         if(telaAtiva==='tela-pcp-ops') pcpRenderOps();
       }
@@ -6535,7 +6562,7 @@ async function efetivarPedido(){
   const agora = hora();
   const hoje = new Date().toLocaleDateString('pt-BR');
   const prazo = prazoMaxATD(atd);
-  atd.status = 'pedido';
+  atd.status = 'aguardando_pcp';
   atd.op = {numero:opNum, efetivadoPor:S.vendedor.nome, efetivadoEm:agora};
   atd.dataEfetivacao = hoje;
   atd.prazoMaxDias = prazo;
@@ -6732,12 +6759,12 @@ async function pcpRecarregarOPs(){
 }
 
 async function pcpCarregarDados(){
+  // Bloco 1: MP + estoque (tabelas podem não existir ainda)
   try {
-    const [{data:mpD},{data:entD},{data:empD},{data:opsD},{data:ppD}] = await Promise.all([
+    const [{data:mpD},{data:entD},{data:empD},{data:ppD}] = await Promise.all([
       supa.from('materia_prima').select('*').eq('ativo',true).order('tipo').order('espessura'),
       supa.from('entradas_mp').select('*'),
       supa.from('empenhos').select('*').in('status',['empenhado','consumido']),
-      supa.from('atendimentos').select('*,clientes(*),itens_atd(*)').in('status',['aguardando_pcp','pedido','producao','concluido']).order('criado_em',{ascending:false}),
       supa.from('pecas_padrao').select('*').eq('ativo',true),
     ]);
     PCP.mp = mpD||[];
@@ -6747,14 +6774,26 @@ async function pcpCarregarDados(){
       const tot=ents.reduce((s,e)=>s+e.qty,0);
       return{...m,qty_entrada:tot,qty_empenhada:emp,saldo:tot-emp,lotes:[...new Set(ents.map(e=>e.cod_lote).filter(Boolean))]};
     });
-    PCP.ops = (opsD||[]).map(a=>({
-      ...a, cliente: a.clientes?.razao||a.id,
-      itens: (a.itens_atd||[]).map(it=>({...it,larg:it.larg||0,alt:it.alt||0,l_r:it.l_r||it.larg,a_r:it.a_r||it.alt}))
-    }));
     PCP.pp = ppD||[];
     if(!PCP.mp.length) pcpUsarSimulacaoEstoque();
-    if(!PCP.ops.length) pcpUsarSimulacaoOps();
-  } catch(e) { pcpUsarSimulacaoEstoque(); pcpUsarSimulacaoOps(); }
+  } catch(e){ console.warn('pcpCarregarDados MP:', e.message); pcpUsarSimulacaoEstoque(); }
+
+  // Bloco 2: OPs (atendimentos existe sempre)
+  try {
+    const {data:opsD} = await supa.from('atendimentos')
+      .select('*,clientes(*),itens_atd(*)')
+      .in('status',['aguardando_pcp','pedido','producao','concluido'])
+      .order('criado_em',{ascending:false});
+    if(opsD && opsD.length){
+      PCP.ops = opsD.map(a=>({
+        ...a, cliente: a.clientes?.razao||a.id,
+        itens: (a.itens_atd||[]).map(it=>({...it,larg:it.larg||0,alt:it.alt||0,l_r:it.l_r||it.larg,a_r:it.a_r||it.alt}))
+      }));
+    } else {
+      pcpUsarSimulacaoOps();
+    }
+  } catch(e){ console.warn('pcpCarregarDados OPs:', e.message); pcpUsarSimulacaoOps(); }
+
   pcpPopularFiltroEsp();
   pcpRenderEstoque();
   pcpRenderOps();
@@ -6776,11 +6815,14 @@ function pcpUsarSimulacaoEstoque(){
     {id:5,tipo:'Vidro Comum',espessura:'8mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao nacional'},
     {id:6,tipo:'Vidro Comum',espessura:'10mm',cor:'Incolor',larg_mm:2440,alt_mm:3660,descricao:'Jumbo'},
     {id:7,tipo:'Vidro Comum',espessura:'6mm',cor:'Refletivo',larg_mm:2000,alt_mm:3000,descricao:'Saint-Gobain · Cool-Lite SKN 176'},
-    {id:8,tipo:'Vidro Laminado',espessura:'6+6mm',cor:'Incolor',larg_mm:2140,alt_mm:3300,descricao:'Padrao laminado'},
-    {id:9,tipo:'Vidro Laminado',espessura:'4+4mm',cor:'Incolor',larg_mm:2140,alt_mm:3300,descricao:'Padrao laminado'},
+    {id:8,tipo:'Vidro Temperado',espessura:'6mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao temperado'},
+    {id:9,tipo:'Vidro Temperado',espessura:'8mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao temperado'},
+    {id:10,tipo:'Vidro Temperado',espessura:'10mm',cor:'Incolor',larg_mm:2440,alt_mm:3660,descricao:'Jumbo temperado'},
+    {id:11,tipo:'Vidro Laminado',espessura:'6+6mm',cor:'Incolor',larg_mm:2140,alt_mm:3300,descricao:'Padrao laminado'},
+    {id:12,tipo:'Vidro Laminado',espessura:'4+4mm',cor:'Incolor',larg_mm:2140,alt_mm:3300,descricao:'Padrao laminado'},
   ];
-  const QTY=[15,12,8,6,10,4,3,7,5],EMP=[5,4,2,1,3,0,0,2,1];
-  const LOTES=[['NF-001','NF-002'],['NF-003'],['NF-004'],['NF-003'],['NF-005'],['NF-005'],[],['NF-006'],['NF-006']];
+  const QTY=[15,12,8,6,10,4,3,12,8,5,7,5],EMP=[5,4,2,1,3,0,0,3,2,0,2,1];
+  const LOTES=[['NF-001','NF-002'],['NF-003'],['NF-004'],['NF-003'],['NF-005'],['NF-005'],[],['NF-008'],['NF-008'],['NF-009'],['NF-006'],['NF-006']];
   PCP.mp=SIM_MP;
   PCP.estoque=SIM_MP.map((m,i)=>({...m,qty_entrada:QTY[i],qty_empenhada:EMP[i],saldo:QTY[i]-EMP[i],lotes:LOTES[i]}));
   PCP.pp=[];
