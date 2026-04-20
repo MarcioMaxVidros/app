@@ -1888,7 +1888,8 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
   </div>
   <div class="body">
     <div style="display:flex;background:var(--card);border-radius:var(--r);padding:3px;margin-bottom:12px;border:.5px solid var(--borda)">
-      <button class="fup-tab ativo" id="pcp-tab-ag" onclick="pcpOpsAba('pedido')">Aguardando</button>
+      <button class="fup-tab ativo" id="pcp-tab-val" onclick="pcpOpsAba('aguardando_pcp')">A Validar <span id="pcp-badge-val" style="display:none;background:#E24B4A;color:#fff;font-size:9px;font-weight:700;border-radius:8px;padding:1px 5px;margin-left:3px;vertical-align:middle"></span></button>
+      <button class="fup-tab" id="pcp-tab-ag" onclick="pcpOpsAba('pedido')">Aguardando</button>
       <button class="fup-tab" id="pcp-tab-pr" onclick="pcpOpsAba('producao')">Em Producao</button>
       <button class="fup-tab" id="pcp-tab-co" onclick="pcpOpsAba('concluido')">Concluidos</button>
     </div>
@@ -3572,10 +3573,6 @@ async function syncDados(){
         }));
         pcpPopularSels();
         if(telaAtiva==='tela-pcp-ops') pcpRenderOps();
-        // Atualizar badge de OPs aguardando
-        const ag=PCP.ops.filter(a=>a.status==='aguardando_pcp').length;
-        const b=document.getElementById('pcp-badge-nav');
-        if(b){b.style.display=ag>0?'inline-flex':'none';b.textContent=ag;}
       }
     }
   } catch(e){ console.warn('sync:', e.message); }
@@ -6716,7 +6713,7 @@ async function pcpRecarregarOPs(){
     const { data } = await supa
       .from('atendimentos')
       .select('*, clientes(*), itens_atd(*), etapas_producao(*)')
-      .in('status', ['pedido','producao','concluido'])
+      .in('status', ['aguardando_pcp','pedido','producao','concluido'])
       .order('criado_em', {ascending: false});
     if(data && data.length){
       PCP.ops = data.map(a=>({
@@ -6793,13 +6790,17 @@ function pcpUsarSimulacaoOps(){
   // Só usa simulação se não tiver OPs reais
   if(PCP.ops && PCP.ops.length) return;
   PCP.ops=[
-    {id:'ATD-RAF-001',op_numero:'OP-RAF-001',status:'pedido',cliente:'Vidracaria Central Ltda',itens:[
-      {id:1001,descricao:'Vidro Comum 6mm Incolor',larg:900,alt:1200,l_r:900,a_r:1200,qty:4,area:1.08,total:712.8,etapa_atual:0,usinagem_desenho:false},
-      {id:1002,descricao:'Vidro Comum 8mm Incolor',larg:600,alt:800,l_r:600,a_r:800,qty:2,area:0.48,total:316.8,etapa_atual:0,usinagem_desenho:false},
+    {id:'ATD-RAF-001',op_numero:'OP-RAF-001',status:'aguardando_pcp',cliente:'Vidracaria Central Ltda',itens:[
+      {id:1001,descricao:'Vidro Comum 6mm Incolor',larg:900,alt:1200,l_r:900,a_r:1200,qty:4,area:1.08,total:712.8,etapa_atual:0,usinagem:{desenho:false,modelado:false,tipos:[]}},
+      {id:1002,descricao:'Vidro Comum 8mm Incolor',larg:600,alt:800,l_r:600,a_r:800,qty:2,area:0.48,total:316.8,etapa_atual:0,usinagem:{desenho:false,modelado:false,tipos:[]}},
+    ]},
+    {id:'ATD-RAF-002',op_numero:'OP-RAF-002',status:'aguardando_pcp',cliente:'Esquadrias Premium Ltda',itens:[
+      {id:2001,descricao:'Vidro Comum 6mm Incolor',larg:1200,alt:2100,l_r:1200,a_r:2100,qty:3,area:2.52,total:1058.4,etapa_atual:0,usinagem:{desenho:true,modelado:false,tipos:['Furo']}},
+      {id:2002,descricao:'Vidro Temperado 8mm Incolor',larg:800,alt:1500,l_r:800,a_r:1500,qty:2,area:1.2,total:576,etapa_atual:0,usinagem:{desenho:false,modelado:false,tipos:[]}},
     ]},
     {id:'ATD-RAF-003',op_numero:'OP-RAF-003',status:'pedido',cliente:'Construtora Horizonte SA',itens:[
-      {id:3001,descricao:'Vidro Comum 10mm Incolor',larg:900,alt:2100,l_r:900,a_r:2100,qty:4,area:1.89,total:1814.4,etapa_atual:0,usinagem_desenho:true},
-      {id:3002,descricao:'Vidro Laminado 6+6mm Incolor',larg:1200,alt:1500,l_r:1200,a_r:1500,qty:2,area:1.8,total:1512,etapa_atual:0,usinagem_desenho:false},
+      {id:3001,descricao:'Vidro Comum 10mm Incolor',larg:900,alt:2100,l_r:900,a_r:2100,qty:4,area:1.89,total:1814.4,etapa_atual:0,usinagem:{desenho:true,modelado:false,tipos:[]}},
+      {id:3002,descricao:'Vidro Laminado 6+6mm Incolor',larg:1200,alt:1500,l_r:1200,a_r:1500,qty:2,area:1.8,total:1512,etapa_atual:0,usinagem:{desenho:false,modelado:false,tipos:[]}},
     ]},
   ];
 }
@@ -6818,49 +6819,114 @@ function pcpPopularSels(){
     if(!s) return;
     s.innerHTML='<option value="">— Selecione —</option>'+ops.map(a=>`<option value="${a.id}">${a.op_numero} · ${a.cliente}</option>`).join('');
   });
-  const ag=PCP.ops.filter(a=>a.status==='pedido').length;
+  const ag=PCP.ops.filter(a=>a.status==='aguardando_pcp').length;
+  const bval=document.getElementById('pcp-badge-val');
+  if(bval){bval.style.display=ag>0?'inline-flex':'none';bval.textContent=ag;}
+  const agPed=PCP.ops.filter(a=>a.status==='pedido').length;
   const b=document.getElementById('pcp-badge-nav');
-  if(b){b.style.display=ag>0?'inline-flex':'none';b.textContent=ag;}
+  if(b){b.style.display=agPed>0?'inline-flex':'none';b.textContent=agPed;}
 }
 
 // ── ESTOQUE ──
 function pcpRenderEstoque(){
-  const tipo=document.getElementById('pcp-filtro-tipo')?.value||'';
-  const esp=document.getElementById('pcp-filtro-esp')?.value||'';
+  const tipoFilt=document.getElementById('pcp-filtro-tipo')?.value||'';
+  const espFilt=document.getElementById('pcp-filtro-esp')?.value||'';
   let lista=PCP.estoque;
-  if(tipo) lista=lista.filter(m=>m.tipo===tipo);
-  if(esp)  lista=lista.filter(m=>m.espessura===esp);
-  const tot=lista.length,bx=lista.filter(m=>m.saldo>0&&m.saldo<=3).length,ze=lista.filter(m=>m.saldo<=0).length;
+  if(tipoFilt) lista=lista.filter(function(m){return m.tipo===tipoFilt;});
+  if(espFilt)  lista=lista.filter(function(m){return m.espessura===espFilt;});
+
+  // Resumo por SKU individual (contagem de linhas)
+  const tot=lista.length;
+  const bx=lista.filter(function(m){return m.saldo>0&&m.saldo<=3;}).length;
+  const ze=lista.filter(function(m){return m.saldo<=0;}).length;
   const res=document.getElementById('pcp-estoque-resumo');
-  if(res) res.innerHTML=`
-    <div class="resumo-item"><div class="resumo-num" style="color:var(--azul)">${tot}</div><div class="resumo-lbl">SKUs</div></div>
-    <div class="resumo-item"><div class="resumo-num" style="color:var(--amarelo)">${bx}</div><div class="resumo-lbl">Baixo</div></div>
-    <div class="resumo-item"><div class="resumo-num" style="color:var(--vermelho)">${ze}</div><div class="resumo-lbl">Sem estoque</div></div>`;
+  if(res) res.innerHTML=''
+    +'<div class="resumo-item"><div class="resumo-num" style="color:var(--azul)">'+tot+'</div><div class="resumo-lbl">SKUs</div></div>'
+    +'<div class="resumo-item"><div class="resumo-num" style="color:var(--amarelo)">'+bx+'</div><div class="resumo-lbl">Baixo</div></div>'
+    +'<div class="resumo-item"><div class="resumo-num" style="color:var(--vermelho)">'+ze+'</div><div class="resumo-lbl">Sem estoque</div></div>';
+
   const el=document.getElementById('pcp-estoque-lista');
   if(!el) return;
   if(!lista.length){el.innerHTML='<div style="text-align:center;padding:40px 0;color:var(--texto3)">Nenhuma chapa cadastrada.</div>';return;}
-  const grupos={};lista.forEach(m=>{if(!grupos[m.tipo])grupos[m.tipo]=[];grupos[m.tipo].push(m);});
-  el.innerHTML=Object.entries(grupos).map(([tipo,itens])=>`
-    <p class="sec-label">${tipo}</p>
-    ${itens.map(m=>{
-      const cor=m.saldo<=0?'var(--vermelho)':m.saldo<=3?'var(--amarelo)':'var(--azul)';
-      const tag=m.saldo<=0?'<span style="font-size:10px;background:var(--vermelho-bg);color:var(--vermelho);padding:1px 7px;border-radius:5px;font-weight:600">Sem estoque</span>':m.saldo<=3?'<span style="font-size:10px;background:var(--amarelo-bg);color:var(--amarelo);padding:1px 7px;border-radius:5px;font-weight:600">Baixo</span>':'';
-      return `<div class="card" style="margin-bottom:8px">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between">
-          <div>
-            <div style="font-size:10px;font-weight:600;color:var(--azul);letter-spacing:.04em;margin-bottom:2px">${m.espessura} · ${m.cor}</div>
-            <div style="font-size:14px;font-weight:600">${m.larg_mm} x ${m.alt_mm} mm</div>
-            ${m.descricao?`<div style="font-size:11px;color:var(--texto3);margin-top:1px">${m.descricao}</div>`:''}
-            ${m.lotes?.length?`<div style="margin-top:5px">${m.lotes.map(l=>`<span style="font-size:9px;background:var(--azul-bg);color:#0C447C;padding:1px 6px;border-radius:4px;font-family:var(--mono);margin-right:3px">${l}</span>`).join('')}</div>`:''}
-          </div>
-          <div style="text-align:right">
-            <div style="font-size:28px;font-weight:700;color:${cor};line-height:1">${m.saldo}</div>
-            <div style="font-size:10px;color:var(--texto3)">chapas</div>${tag}
-          </div>
-        </div>
-        <div style="margin-top:8px"><button class="btn btn-secundario btn-sm" onclick="pcpAbrirEntradaMP(${m.id})">+ Entrada</button></div>
-      </div>`;
-    }).join('')}`).join('');
+
+  // Agrupar por tipo → espessura+cor (card) → chapas individuais (linhas)
+  // grupos[tipo][esp|cor] = [ ...mp ]
+  const gruposTipo={};
+  lista.forEach(function(m){
+    const t=m.tipo;
+    const k=m.espessura+'|'+(m.cor||'Incolor');
+    if(!gruposTipo[t]) gruposTipo[t]={};
+    if(!gruposTipo[t][k]) gruposTipo[t][k]=[];
+    gruposTipo[t][k].push(m);
+  });
+
+  let html='';
+  Object.entries(gruposTipo).forEach(function(te){
+    const tipo=te[0],grupos=te[1];
+    html+='<p class="sec-label">'+tipo+'</p>';
+    Object.entries(grupos).forEach(function(ge){
+      const key=ge[0];
+      const itens=ge[1].filter(function(m){return (m.saldo||0)>0;});
+      if(!itens.length) return;
+      const parts=key.split('|');
+      const esp=parts[0],cor=parts[1];
+      const totalSaldo=itens.reduce(function(s,m){return s+(m.saldo||0);},0);
+      const corNum=totalSaldo<=0?'var(--vermelho)':totalSaldo<=5?'var(--amarelo)':'var(--azul)';
+      const tagCard=totalSaldo<=0
+        ?'<span style="font-size:10px;background:var(--vermelho-bg);color:var(--vermelho);padding:1px 7px;border-radius:5px;font-weight:600">Sem estoque</span>'
+        :totalSaldo<=5
+        ?'<span style="font-size:10px;background:var(--amarelo-bg);color:var(--amarelo);padding:1px 7px;border-radius:5px;font-weight:600">Baixo</span>'
+        :'';
+
+      // Linhas de dimensão
+      let linhas='';
+      itens.forEach(function(m){
+        const L=m.larg_mm||0,A=m.alt_mm||0;
+        const s=m.saldo||0;
+        const cLinha=s<=0?'var(--vermelho)':s<=3?'var(--amarelo)':'var(--texto)';
+        const lotesStr=m.lotes&&m.lotes.length?' · '+m.lotes.join(', '):'';
+        const descStr=m.descricao?' <span style="color:var(--texto3);font-weight:400">'+m.descricao+'</span>':'';
+        linhas+=''
+          +'<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--borda)">'
+          +'<div style="flex:1;min-width:0">'
+          +'<div style="font-size:13px;font-weight:500;font-family:var(--mono)">'+L+' × '+A+' mm'+descStr+'</div>'
+          +(lotesStr?'<div style="font-size:9px;color:var(--texto3);margin-top:2px">'+lotesStr+'</div>':'')
+          +'</div>'
+          +'<div style="display:flex;align-items:center;gap:10px;margin-left:10px;flex-shrink:0">'
+          +'<div style="text-align:right">'
+          +'<div style="font-size:20px;font-weight:700;color:'+cLinha+';line-height:1">'+s+'</div>'
+          +'<div style="font-size:9px;color:var(--texto3)">chapas</div>'
+          +'</div>'
+          +'<button class="btn btn-secundario btn-sm" style="height:30px;padding:0 8px;font-size:11px" onclick="pcpAbrirEntradaMP('+m.id+')">+ Entrada</button>'
+          +'</div>'
+          +'</div>';
+      });
+      // Remove borda da última linha
+      linhas=linhas.replace(/border-bottom:.5px solid var\(--borda\)(<\/div><\/div><\/div><\/div>)$/,'$1');
+
+      html+=''
+        +'<div class="card" style="margin-bottom:10px">'
+        // Header do card
+        +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+        +'<div>'
+        +'<div style="font-size:16px;font-weight:600">'+cor+'</div>'
+        +'<div style="font-size:11px;color:var(--texto3);margin-top:1px">'+esp+' · '+itens.length+' tamanho'+(itens.length>1?'s':'')+' · '+tipo+'</div>'
+        +'</div>'
+        +'<div style="text-align:right">'
+        +'<div style="font-size:26px;font-weight:700;color:'+corNum+';line-height:1">'+totalSaldo+'</div>'
+        +'<div style="font-size:9px;color:var(--texto3)">total chapas</div>'
+        +tagCard
+        +'</div>'
+        +'</div>'
+        // Divisor
+        +'<div style="border-top:.5px solid var(--borda);margin:0 -14px;padding:0 14px">'
+        +linhas
+        +'</div>'
+        +'</div>';
+    });
+  });
+
+  el.innerHTML=html;
 }
 
 function pcpAbrirEntrada(){
@@ -6927,35 +6993,98 @@ async function pcpSalvarCadastroMP(){
 }
 
 // ── OPs ──
-let _pcpOpsStatus='pedido';
+let _pcpOpsStatus='aguardando_pcp';
 function pcpOpsAba(st){
   _pcpOpsStatus=st;
-  const mapa={pedido:'ag',producao:'pr',concluido:'co'};
-  ['ag','pr','co'].forEach(k=>document.getElementById('pcp-tab-'+k)?.classList.remove('ativo'));
-  document.getElementById('pcp-tab-'+(mapa[st]||'ag'))?.classList.add('ativo');
+  const mapa={aguardando_pcp:'val',pedido:'ag',producao:'pr',concluido:'co'};
+  ['val','ag','pr','co'].forEach(k=>document.getElementById('pcp-tab-'+k)?.classList.remove('ativo'));
+  document.getElementById('pcp-tab-'+(mapa[st]||'val'))?.classList.add('ativo');
   pcpRenderOps();
 }
 
 function pcpRenderOps(){
-  const lista=PCP.ops.filter(a=>a.status===_pcpOpsStatus);
+  const lista=PCP.ops.filter(function(a){return a.status===_pcpOpsStatus;});
   const el=document.getElementById('pcp-ops-lista');
   if(!el) return;
   if(!lista.length){el.innerHTML='<div style="text-align:center;padding:40px 0;color:var(--texto3)">Nenhuma OP nesta fila.</div>';return;}
-  el.innerHTML=lista.map(a=>{
-    const tot=(a.itens||[]).reduce((s,i)=>s+(i.total||0),0);
-    const tag=a.status==='pedido'?'<span style="font-size:10px;background:var(--amarelo-bg);color:var(--amarelo);padding:2px 8px;border-radius:5px;font-weight:600">Aguardando</span>':a.status==='producao'?'<span style="font-size:10px;background:var(--azul-bg);color:#0C447C;padding:2px 8px;border-radius:5px;font-weight:600">Em Producao</span>':'<span style="font-size:10px;background:var(--verde-bg);color:var(--verde);padding:2px 8px;border-radius:5px;font-weight:600">Concluido</span>';
-    return `<div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:13px;font-weight:700;font-family:var(--mono)">${a.op_numero||a.id}</span>${tag}
-      </div>
-      <div style="font-size:14px;font-weight:500;margin-bottom:2px">${a.cliente}</div>
-      <div style="font-size:12px;color:var(--texto3);margin-bottom:10px">${(a.itens||[]).length} item(s) · R$ ${fmt(tot)}</div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-secundario btn-sm" onclick="pcpIrPlano('${a.id}')">Plano de corte</button>
-        <button class="btn btn-primario btn-sm" onclick="pcpIrEtiq('${a.id}')">Etiquetas</button>
-      </div>
-    </div>`;
+
+  const isVal=(_pcpOpsStatus==='aguardando_pcp');
+
+  el.innerHTML=lista.map(function(a){
+    const tot=(a.itens||[]).reduce(function(s,i){return s+(i.total||0);},0);
+
+    // Badge de status
+    let tag='';
+    if(a.status==='aguardando_pcp') tag='<span style="font-size:10px;background:#FAEEDA;color:#633806;padding:2px 8px;border-radius:5px;font-weight:600">A Validar</span>';
+    else if(a.status==='pedido')    tag='<span style="font-size:10px;background:var(--amarelo-bg);color:var(--amarelo);padding:2px 8px;border-radius:5px;font-weight:600">Aguardando</span>';
+    else if(a.status==='producao')  tag='<span style="font-size:10px;background:var(--azul-bg);color:#0C447C;padding:2px 8px;border-radius:5px;font-weight:600">Em Producao</span>';
+    else                            tag='<span style="font-size:10px;background:var(--verde-bg);color:var(--verde);padding:2px 8px;border-radius:5px;font-weight:600">Concluido</span>';
+
+    // Itens do pedido resumidos
+    const itensHtml=(a.itens||[]).map(function(it){
+      return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:.5px solid var(--borda)">'
+        +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+it.descricao+'</div>'
+        +'<div style="font-size:10px;color:var(--texto3)">'+(it.qty||1)+' pç · '+(it.larg||0)+'×'+(it.alt||0)+'mm'
+        +(it.usinagem&&(it.usinagem.modelado||it.usinagem.desenho||((it.usinagem.tipos||[]).length>0))?' · <span style="color:#0C447C;font-weight:600">Usinagem</span>':'')
+        +'</div>'
+        +'</div>'
+        +'<div style="font-size:11px;font-weight:500;color:var(--texto2);margin-left:8px;white-space:nowrap">R$ '+fmt(it.total||0)+'</div>'
+        +'</div>';
+    }).join('');
+
+    // Botões conforme aba
+    let botoes='';
+    if(isVal){
+      botoes=''
+        +'<button class="btn btn-verde btn-sm" style="flex:2;height:40px" onclick="pcpValidarOP(&quot;'+a.id+'&quot;)">'
+        +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="margin-right:4px;vertical-align:middle"><polyline points="20 6 9 17 4 12"/></svg>Validar OP'
+        +'</button>'
+        +'<button class="btn btn-secundario btn-sm" style="flex:1;height:40px" onclick="pcpVerDesenhos(&quot;'+a.id+'&quot;)">'
+        +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:4px;vertical-align:middle"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Desenhos'
+        +'</button>'
+        +'<button class="btn btn-secundario btn-sm" style="flex:1;height:40px" onclick="pcpAbrirOcorrenciaPCP(&quot;'+a.id+'&quot;)">'
+        +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:4px;vertical-align:middle"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Questionamento'
+        +'</button>';
+    } else {
+      botoes=''
+        +'<button class="btn btn-secundario btn-sm" onclick="pcpIrPlano(&quot;'+a.id+'&quot;)" style="height:36px">Plano de corte</button>'
+        +'<button class="btn btn-primario btn-sm" onclick="pcpIrEtiq(&quot;'+a.id+'&quot;)" style="height:36px">Etiquetas</button>';
+    }
+
+    return '<div class="card" style="margin-bottom:10px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">'
+      +'<span style="font-size:13px;font-weight:700;font-family:var(--mono)">'+(a.op_numero||a.id)+'</span>'+tag
+      +'</div>'
+      +'<div style="font-size:14px;font-weight:500;margin-bottom:1px">'+(a.cliente||'')+'</div>'
+      +'<div style="font-size:11px;color:var(--texto3);margin-bottom:8px">'+(a.itens||[]).length+' item(s) · R$ '+fmt(tot)+'</div>'
+      +(isVal
+        ?'<div style="border-top:.5px solid var(--borda);margin:0 -14px 10px;padding:0 14px">'+itensHtml+'</div>'
+        :'')
+      +'<div style="display:flex;gap:8px">'+botoes+'</div>'
+      +'</div>';
   }).join('');
+}
+
+// ── PCP: Validar OP (aguardando_pcp → pedido) ───────────────────────
+async function pcpValidarOP(atdId){
+  const op=PCP.ops.find(function(a){return a.id===atdId;});
+  if(!op) return;
+  op.status='pedido';
+  if(S.atendimentos[atdId]) S.atendimentos[atdId].status='pedido';
+  try{
+    await supa.from('atendimentos').update({status:'pedido'}).eq('id',atdId);
+    await supa.from('atividades').insert({
+      usuario_id:S.vendedor?.id||null, atd_id:atdId, tipo:'pcp',
+      cliente:op.cliente||'', detalhe:'OP validada pelo PCP — liberada para sequenciamento', hora:hora()
+    });
+  }catch(e){console.warn('pcpValidarOP:',e);}
+  // Atualiza badge da aba
+  const ag=PCP.ops.filter(function(a){return a.status==='aguardando_pcp';}).length;
+  const badge=document.getElementById('pcp-badge-val');
+  if(badge){badge.textContent=ag;badge.style.display=ag?'inline-flex':'none';}
+  renderFilaProducao();
+  pcpRenderOps();
 }
 
 // ── PCP: Liberar OP para produção ────────────────────────────────
@@ -7193,7 +7322,12 @@ function optSelMPById(id){
   const m=estoqueRef.find(x=>String(x.id)===String(id));if(!m)return;
   const esp=m.espessura,cor=m.cor||'Incolor';
   OPT.mp={...m,esp,cor};
-  OPT.opsDisp=PCP.ops.filter(o=>['aguardando_pcp','pedido'].includes(o.status)&&(o.itens||[]).some(i=>(i.descricao||'').includes(esp)));
+  OPT.opsDisp=PCP.ops.filter(function(o){
+    return ['aguardando_pcp','pedido'].includes(o.status)&&
+      (o.itens||[]).some(function(i){
+        return (i.descricao||'').includes(m.tipo)&&(i.descricao||'').includes(esp);
+      });
+  });
   OPT.opsSel=new Set();OPT.step=1;
   const s=document.getElementById('opt-sub');if(s)s.textContent=`${esp} · ${cor}`;
   const pp=document.getElementById('opt-btn-pp');if(pp)pp.style.display='inline-flex';
@@ -7221,7 +7355,7 @@ function optR1(){
     } else {
       h+=`<p class="sec-label">OPs aguardando · ${OPT.opsDisp.length}</p>`;
       h+=OPT.opsDisp.map(op=>{
-        const its=(op.itens||[]).filter(it=>(it.descricao||'').includes(esp));
+        const its=(op.itens||[]).filter(it=>(it.descricao||'').includes(tipo)&&(it.descricao||'').includes(esp));
         const pcs=its.reduce((s,i)=>s+(i.qty||1),0);
         const area=its.reduce((s,i)=>s+(i.area||0)*(i.qty||1),0);
         const sel=OPT.opsSel.has(op.id);
@@ -7313,7 +7447,7 @@ function optIrChapas(){
   if(OPT.modo==='auto'){
     const ops=OPT.opsDisp.filter(o=>OPT.opsSel.has(o.id));
     ops.forEach((op,oi)=>{
-      (op.itens||[]).filter(it=>(it.descricao||'').includes(esp)).forEach(it=>{
+      (op.itens||[]).filter(it=>(it.descricao||'').includes(tipo)&&(it.descricao||'').includes(esp)).forEach(it=>{
         const qty=it.qty||1,L=(it.larg||it.l_r||0)+lap,A=(it.alt||it.a_r||0)+lap;
         for(let q=0;q<qty;q++) OPT.pecas.push({id:`${it.id}_${q}`,baseId:`${it.id}`,opId:op.id,opNum:op.op_numero||op.id,cliente:op.cliente||'',l:L,a:A,lo:it.larg||it.l_r||0,ao:it.alt||it.a_r||0,cor:OPT_CORES[oi%OPT_CORES.length]});
       });
