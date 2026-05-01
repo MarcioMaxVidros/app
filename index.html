@@ -6567,6 +6567,20 @@ async function efetivarPedido(){
   atd.dataEfetivacao = hoje;
   atd.prazoMaxDias = prazo;
 
+  // Sincronizar PCP.ops imediatamente (sem depender do Supabase ou sync periódico)
+  if(typeof PCP !== 'undefined' && Array.isArray(PCP.ops)){
+    const opObj = {
+      ...atd,
+      op_numero: opNum,
+      cliente: atd.cliente?.razao||atd.cliente||_atdAprovacao,
+      itens: (atd.itens||[]).map(function(it){
+        return {...it, larg:it.larg||0, alt:it.alt||0, l_r:it.l_r||it.larg, a_r:it.a_r||it.alt};
+      })
+    };
+    const idx = PCP.ops.findIndex(function(o){ return o.id===_atdAprovacao; });
+    if(idx>=0) PCP.ops[idx]=opObj; else PCP.ops.unshift(opObj);
+  }
+
   // Gravar no Supabase
   try {
     await supa.from('atendimentos').update({
@@ -6735,6 +6749,28 @@ function pcpGetPipeline(item){
   return getEtapasItem(shim);
 }
 
+// Fallback: popula PCP.ops a partir de S.atendimentos (sem Supabase)
+function _pcpOpsFromAtendimentos(){
+  var atds = Object.values(S.atendimentos||{});
+  var STATUS_PCP = ['aguardando_pcp','pedido','producao','concluido'];
+  var ops = atds.filter(function(a){ return STATUS_PCP.includes(a.status||''); });
+  if(!ops.length) return false;
+  var newOps = ops.map(function(a){
+    return {
+      ...a,
+      op_numero: a.op?.numero||a.op_numero||'',
+      cliente: a.cliente?.razao||a.cliente||a.id,
+      itens: (a.itens||[]).map(function(it){
+        return {...it, larg:it.larg||0, alt:it.alt||0, l_r:it.l_r||it.larg, a_r:it.a_r||it.alt};
+      })
+    };
+  });
+  var newIds = new Set(newOps.map(function(o){ return o.id; }));
+  var sobreviventes = (PCP.ops||[]).filter(function(o){ return o.status==='aguardando_pcp'&&!newIds.has(o.id); });
+  PCP.ops = newOps.concat(sobreviventes);
+  return true;
+}
+
 async function pcpRecarregarOPs(){
   try {
     const { data } = await supa
@@ -6754,8 +6790,15 @@ async function pcpRecarregarOPs(){
       }));
       pcpRenderOps();
       pcpPopularSels();
+    } else {
+      // Supabase retornou vazio — tenta S.atendimentos antes da simulação
+      if(_pcpOpsFromAtendimentos()){ pcpRenderOps(); pcpPopularSels(); }
     }
-  } catch(e){ console.warn('pcpRecarregarOPs:', e); }
+  } catch(e){
+    console.warn('pcpRecarregarOPs:', e);
+    // Supabase falhou — tenta S.atendimentos antes da simulação
+    if(_pcpOpsFromAtendimentos()){ pcpRenderOps(); pcpPopularSels(); }
+  }
 }
 
 async function pcpCarregarDados(){
@@ -6790,9 +6833,13 @@ async function pcpCarregarDados(){
         itens: (a.itens_atd||[]).map(it=>({...it,larg:it.larg||0,alt:it.alt||0,l_r:it.l_r||it.larg,a_r:it.a_r||it.alt}))
       }));
     } else {
-      pcpUsarSimulacaoOps();
+      // Antes de cair na simulação, tenta S.atendimentos (OPs efetivadas nesta sessão)
+      if(!_pcpOpsFromAtendimentos()) pcpUsarSimulacaoOps();
     }
-  } catch(e){ console.warn('pcpCarregarDados OPs:', e.message); pcpUsarSimulacaoOps(); }
+  } catch(e){
+    console.warn('pcpCarregarDados OPs:', e.message);
+    if(!_pcpOpsFromAtendimentos()) pcpUsarSimulacaoOps();
+  }
 
   pcpPopularFiltroEsp();
   pcpRenderEstoque();
