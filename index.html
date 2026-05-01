@@ -6788,17 +6788,18 @@ async function pcpRecarregarOPs(){
           etapa_atual: _calcEtapaAtual(a.etapas_producao||[], it.id)
         }))
       }));
-      pcpRenderOps();
-      pcpPopularSels();
     } else {
-      // Supabase retornou vazio — tenta S.atendimentos antes da simulação
-      if(_pcpOpsFromAtendimentos()){ pcpRenderOps(); pcpPopularSels(); }
+      // Supabase vazio — tenta S.atendimentos; se nada, mantém o que já está em PCP.ops
+      _pcpOpsFromAtendimentos();
     }
   } catch(e){
     console.warn('pcpRecarregarOPs:', e);
-    // Supabase falhou — tenta S.atendimentos antes da simulação
-    if(_pcpOpsFromAtendimentos()){ pcpRenderOps(); pcpPopularSels(); }
+    // Supabase falhou — tenta S.atendimentos; se nada, mantém o que já está em PCP.ops
+    _pcpOpsFromAtendimentos();
   }
+  // Sempre renderiza (com dados do Supabase, S.atendimentos ou simulação do login)
+  pcpRenderOps();
+  pcpPopularSels();
 }
 
 async function pcpCarregarDados(){
