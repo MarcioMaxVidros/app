@@ -6750,24 +6750,41 @@ function pcpGetPipeline(item){
 }
 
 // Fallback: popula PCP.ops a partir de S.atendimentos (sem Supabase)
+// Normaliza um ATD de S.atendimentos para o formato esperado por PCP.ops
+function _normalizarAtdParaPcp(a){
+  return {
+    ...a,
+    id:         a.id || a.cliente?.atd || '',
+    op_numero:  a.op?.numero || a.op_numero || '',
+    cliente:    a.cliente?.razao || a.cliente || '',
+    itens: (a.itens||[]).map(function(it){
+      return {...it, larg:it.larg||0, alt:it.alt||0, l_r:it.l_r||it.larg, a_r:it.a_r||it.alt};
+    })
+  };
+}
+
+// Dado um conjunto de OPs já em PCP.ops (Supabase ou simulação),
+// mescla os ATDs 'aguardando_pcp' de S.atendimentos que não estão lá ainda.
+// Retorna o array mesclado.
+function _pcpMergeLocalAguardando(baseOps){
+  var baseIds = new Set(baseOps.map(function(o){ return String(o.id||''); }));
+  var extras = Object.values(S.atendimentos||{})
+    .filter(function(a){
+      var atdId = String(a.id || a.cliente?.atd || '');
+      return a.status === 'aguardando_pcp' && !baseIds.has(atdId);
+    })
+    .map(_normalizarAtdParaPcp);
+  return extras.concat(baseOps);  // aguardando_pcp locais primeiro
+}
+
+// Popula PCP.ops inteiramente a partir de S.atendimentos (usado quando Supabase retorna vazio)
 function _pcpOpsFromAtendimentos(){
-  var atds = Object.values(S.atendimentos||{});
   var STATUS_PCP = ['aguardando_pcp','pedido','producao','concluido'];
-  var ops = atds.filter(function(a){ return STATUS_PCP.includes(a.status||''); });
+  var ops = Object.values(S.atendimentos||{})
+    .filter(function(a){ return STATUS_PCP.includes(a.status||''); })
+    .map(_normalizarAtdParaPcp);
   if(!ops.length) return false;
-  var newOps = ops.map(function(a){
-    return {
-      ...a,
-      op_numero: a.op?.numero||a.op_numero||'',
-      cliente: a.cliente?.razao||a.cliente||a.id,
-      itens: (a.itens||[]).map(function(it){
-        return {...it, larg:it.larg||0, alt:it.alt||0, l_r:it.l_r||it.larg, a_r:it.a_r||it.alt};
-      })
-    };
-  });
-  var newIds = new Set(newOps.map(function(o){ return o.id; }));
-  var sobreviventes = (PCP.ops||[]).filter(function(o){ return o.status==='aguardando_pcp'&&!newIds.has(o.id); });
-  PCP.ops = newOps.concat(sobreviventes);
+  PCP.ops = ops;
   return true;
 }
 
@@ -6779,7 +6796,7 @@ async function pcpRecarregarOPs(){
       .in('status', ['aguardando_pcp','pedido','producao','concluido'])
       .order('criado_em', {ascending: false});
     if(data && data.length){
-      PCP.ops = data.map(a=>({
+      var supaOps = data.map(a=>({
         ...a,
         cliente: a.clientes?.razao || a.id,
         itens: (a.itens_atd||[]).map(it=>({
@@ -6788,16 +6805,17 @@ async function pcpRecarregarOPs(){
           etapa_atual: _calcEtapaAtual(a.etapas_producao||[], it.id)
         }))
       }));
+      // Mesmo com dados do Supabase, mescla OPs locais que ainda não chegaram lá
+      PCP.ops = _pcpMergeLocalAguardando(supaOps);
     } else {
-      // Supabase vazio — tenta S.atendimentos; se nada, mantém o que já está em PCP.ops
+      // Supabase vazio — usa S.atendimentos; senão mantém o que já há (simulação do login)
       _pcpOpsFromAtendimentos();
     }
   } catch(e){
     console.warn('pcpRecarregarOPs:', e);
-    // Supabase falhou — tenta S.atendimentos; se nada, mantém o que já está em PCP.ops
     _pcpOpsFromAtendimentos();
   }
-  // Sempre renderiza (com dados do Supabase, S.atendimentos ou simulação do login)
+  // Sempre renderiza
   pcpRenderOps();
   pcpPopularSels();
 }
@@ -6829,12 +6847,14 @@ async function pcpCarregarDados(){
       .in('status',['aguardando_pcp','pedido','producao','concluido'])
       .order('criado_em',{ascending:false});
     if(opsD && opsD.length){
-      PCP.ops = opsD.map(a=>({
+      var supaOps = opsD.map(a=>({
         ...a, cliente: a.clientes?.razao||a.id,
         itens: (a.itens_atd||[]).map(it=>({...it,larg:it.larg||0,alt:it.alt||0,l_r:it.l_r||it.larg,a_r:it.a_r||it.alt}))
       }));
+      // Mesmo com dados do Supabase, mescla OPs locais aguardando_pcp ainda não gravadas
+      PCP.ops = _pcpMergeLocalAguardando(supaOps);
     } else {
-      // Antes de cair na simulação, tenta S.atendimentos (OPs efetivadas nesta sessão)
+      // Supabase vazio — usa S.atendimentos; senão simulação
       if(!_pcpOpsFromAtendimentos()) pcpUsarSimulacaoOps();
     }
   } catch(e){
