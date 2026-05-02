@@ -7125,7 +7125,7 @@ function pcpGerarRelatorioInventario(){
   if(w){w.document.write(html);w.document.close();}
 }
 
-
+function pcpRenderEstoque(){
   const tipoFilt=document.getElementById('pcp-filtro-tipo')?.value||'';
   const espFilt=document.getElementById('pcp-filtro-esp')?.value||'';
   let lista=PCP.estoque;
