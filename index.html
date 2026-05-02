@@ -1858,6 +1858,7 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
       <button onclick="pcpAbrirEntrada()" style="background:rgba(255,255,255,.15);border:none;border-radius:8px;padding:6px 10px;color:#fff;font-family:var(--font);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Entrada
       </button>
+      <button onclick="pcpToggleInventario()" id="btn-inventario" style="background:rgba(255,255,255,.08);border:none;border-radius:8px;padding:6px 10px;color:rgba(255,255,255,.7);font-family:var(--font);font-size:11px;cursor:pointer;margin-left:4px">Inventário</button>
       <button onclick="pcpAbrirCadastroMP()" style="background:rgba(255,255,255,.08);border:none;border-radius:8px;padding:6px 10px;color:rgba(255,255,255,.7);font-family:var(--font);font-size:11px;cursor:pointer;margin-left:4px">Cadastrar</button>
       <button onclick="sair()" style="background:rgba(255,255,255,.08);border:none;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-left:4px">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -1972,18 +1973,19 @@ body.desktop #tela-login,body.desktop #tela-pin{grid-column:1/3;}
 <div class="modal-overlay" id="pcp-modal-cad-mp">
   <div class="modal-box">
     <div class="modal-header"><div class="modal-titulo">Cadastrar Chapa</div><button class="modal-fechar" onclick="fecharModal('pcp-modal-cad-mp')">×</button></div>
-    <div class="campo"><label>Tipo *</label><select id="pcp-cad-tipo"><option value="">Selecione</option><option>Vidro Comum</option><option>Vidro Laminado</option></select></div>
-    <div class="campo"><label>Espessura *</label><input id="pcp-cad-esp" type="text" placeholder="ex: 6mm"></div>
+    <div class="campo"><label>Tipo *</label><select id="pcp-cad-tipo"><option value="">Selecione</option><option>Vidro Comum</option><option>Vidro Temperado</option><option>Vidro Laminado</option><option>Temperado + Laminado</option><option>Vidro Insulado</option></select></div>
+    <div class="campo"><label>Espessura *</label><input id="pcp-cad-esp" type="text" placeholder="ex: 6mm ou 6+6mm"></div>
     <div class="campo"><label>Cor *</label><select id="pcp-cad-cor" onchange="pcpCadRefletivo()"><option value="">Selecione</option><option>Incolor</option><option>Verde</option><option>Fume</option><option>Bronze</option><option>Refletivo</option></select></div>
     <div id="pcp-cad-ref-wrap" style="display:none">
       <div class="campo"><label>Marca *</label><input id="pcp-cad-ref-marca" type="text"></div>
       <div class="campo"><label>Modelo *</label><input id="pcp-cad-ref-modelo" type="text"></div>
     </div>
     <div style="display:flex;gap:10px">
-      <div class="campo" style="flex:1"><label>Largura *</label><input id="pcp-cad-larg" type="number"></div>
-      <div class="campo" style="flex:1"><label>Altura *</label><input id="pcp-cad-alt" type="number"></div>
+      <div class="campo" style="flex:1"><label>Largura *</label><input id="pcp-cad-larg" type="number" placeholder="mm"></div>
+      <div class="campo" style="flex:1"><label>Altura *</label><input id="pcp-cad-alt" type="number" placeholder="mm"></div>
     </div>
-    <div class="campo" style="margin-bottom:0"><label>Descricao</label><input id="pcp-cad-desc" type="text"></div>
+    <div class="campo"><label>Valor de custo (R$/m²)</label><input id="pcp-cad-valor" type="number" step="0.01" placeholder="ex: 32.50" style="font-family:var(--mono)"></div>
+    <div class="campo" style="margin-bottom:0"><label>Descrição</label><input id="pcp-cad-desc" type="text" placeholder="fornecedor, referência..."></div>
     <div id="pcp-cad-erro" class="alerta alerta-erro" style="display:none;margin-top:10px"></div>
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="btn btn-secundario btn-sm" style="flex:1" onclick="fecharModal('pcp-modal-cad-mp')">Cancelar</button>
@@ -6886,18 +6888,18 @@ function pcpUsarSimulacao(){
 
 function pcpUsarSimulacaoEstoque(){
   const SIM_MP=[
-    {id:1,tipo:'Vidro Comum',espessura:'4mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao nacional'},
-    {id:2,tipo:'Vidro Comum',espessura:'6mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao nacional'},
-    {id:3,tipo:'Vidro Comum',espessura:'6mm',cor:'Incolor',larg_mm:2440,alt_mm:3660,descricao:'Jumbo'},
-    {id:4,tipo:'Vidro Comum',espessura:'6mm',cor:'Fume',larg_mm:2000,alt_mm:3000,descricao:'Padrao fume'},
-    {id:5,tipo:'Vidro Comum',espessura:'8mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao nacional'},
-    {id:6,tipo:'Vidro Comum',espessura:'10mm',cor:'Incolor',larg_mm:2440,alt_mm:3660,descricao:'Jumbo'},
-    {id:7,tipo:'Vidro Comum',espessura:'6mm',cor:'Refletivo',larg_mm:2000,alt_mm:3000,descricao:'Saint-Gobain · Cool-Lite SKN 176'},
-    {id:8,tipo:'Vidro Temperado',espessura:'6mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao temperado'},
-    {id:9,tipo:'Vidro Temperado',espessura:'8mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao temperado'},
-    {id:10,tipo:'Vidro Temperado',espessura:'10mm',cor:'Incolor',larg_mm:2440,alt_mm:3660,descricao:'Jumbo temperado'},
-    {id:11,tipo:'Vidro Laminado',espessura:'6+6mm',cor:'Incolor',larg_mm:2140,alt_mm:3300,descricao:'Padrao laminado'},
-    {id:12,tipo:'Vidro Laminado',espessura:'4+4mm',cor:'Incolor',larg_mm:2140,alt_mm:3300,descricao:'Padrao laminado'},
+    {id:1,tipo:'Vidro Comum',espessura:'4mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao nacional',valor_m2:28.50},
+    {id:2,tipo:'Vidro Comum',espessura:'6mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao nacional',valor_m2:32.00},
+    {id:3,tipo:'Vidro Comum',espessura:'6mm',cor:'Incolor',larg_mm:2440,alt_mm:3660,descricao:'Jumbo',valor_m2:30.50},
+    {id:4,tipo:'Vidro Comum',espessura:'6mm',cor:'Fume',larg_mm:2000,alt_mm:3000,descricao:'Padrao fume',valor_m2:38.00},
+    {id:5,tipo:'Vidro Comum',espessura:'8mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao nacional',valor_m2:42.00},
+    {id:6,tipo:'Vidro Comum',espessura:'10mm',cor:'Incolor',larg_mm:2440,alt_mm:3660,descricao:'Jumbo',valor_m2:55.00},
+    {id:7,tipo:'Vidro Comum',espessura:'6mm',cor:'Refletivo',larg_mm:2000,alt_mm:3000,descricao:'Saint-Gobain · Cool-Lite SKN 176',valor_m2:118.00},
+    {id:8,tipo:'Vidro Temperado',espessura:'6mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao temperado',valor_m2:68.00},
+    {id:9,tipo:'Vidro Temperado',espessura:'8mm',cor:'Incolor',larg_mm:2000,alt_mm:3000,descricao:'Padrao temperado',valor_m2:85.00},
+    {id:10,tipo:'Vidro Temperado',espessura:'10mm',cor:'Incolor',larg_mm:2440,alt_mm:3660,descricao:'Jumbo temperado',valor_m2:98.00},
+    {id:11,tipo:'Vidro Laminado',espessura:'6+6mm',cor:'Incolor',larg_mm:2140,alt_mm:3300,descricao:'Padrao laminado',valor_m2:112.00},
+    {id:12,tipo:'Vidro Laminado',espessura:'4+4mm',cor:'Incolor',larg_mm:2140,alt_mm:3300,descricao:'Padrao laminado',valor_m2:95.00},
   ];
   const QTY=[15,12,8,6,10,4,3,12,8,5,7,5],EMP=[5,4,2,1,3,0,0,3,2,0,2,1];
   const LOTES=[['NF-001','NF-002'],['NF-003'],['NF-004'],['NF-003'],['NF-005'],['NF-005'],[],['NF-008'],['NF-008'],['NF-009'],['NF-006'],['NF-006']];
@@ -6948,7 +6950,182 @@ function pcpPopularSels(){
 }
 
 // ── ESTOQUE ──
-function pcpRenderEstoque(){
+// ── Helpers de peso e área ────────────────────────────────────────────
+function _espMm(esp){
+  if(!esp) return 0;
+  const s=String(esp).replace(/mm/gi,'').trim();
+  if(s.includes('+')) return s.split('+').reduce(function(a,b){return a+(parseFloat(b)||0);},0);
+  return parseFloat(s)||0;
+}
+function _pesoM2(esp){ return _espMm(esp)*2.5; } // kg/m²
+function _areaChapa(m){ return ((m.larg_mm||0)*(m.alt_mm||0))/1000000; } // m²
+
+// ── Toggle inventário / estoque ───────────────────────────────────────
+let _modoInventario=false;
+function pcpToggleInventario(){
+  _modoInventario=!_modoInventario;
+  const btn=document.getElementById('btn-inventario');
+  if(btn) btn.style.background=_modoInventario?'rgba(255,255,255,.25)':'rgba(255,255,255,.08)';
+  if(_modoInventario) pcpRenderInventario(); else pcpRenderEstoque();
+}
+
+function pcpRenderInventario(){
+  const tipoFilt=document.getElementById('pcp-filtro-tipo')?.value||'';
+  const espFilt=document.getElementById('pcp-filtro-esp')?.value||'';
+  let lista=PCP.estoque.filter(function(m){return (m.saldo||0)>0;});
+  if(tipoFilt) lista=lista.filter(function(m){return m.tipo===tipoFilt;});
+  if(espFilt)  lista=lista.filter(function(m){return m.espessura===espFilt;});
+
+  // Totais gerais
+  let totArea=0,totPeso=0,totValor=0,totChapas=0,semValor=0;
+  lista.forEach(function(m){
+    const s=m.saldo||0;
+    const a=_areaChapa(m)*s;
+    const kg=_pesoM2(m.espessura)*a;
+    const v=(m.valor_m2||0)*a;
+    totChapas+=s; totArea+=a; totPeso+=kg; totValor+=v;
+    if(!m.valor_m2) semValor++;
+  });
+
+  const el=document.getElementById('pcp-estoque-lista');
+  const res=document.getElementById('pcp-estoque-resumo');
+  if(res) res.innerHTML='';
+  if(!el) return;
+
+  let h='';
+  // Métricas
+  h+='<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">'
+    +'<div class="card" style="padding:.75rem">'
+    +'<div style="font-size:10px;color:var(--texto3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Estoque total</div>'
+    +'<div style="font-size:20px;font-weight:600;color:var(--azul)">'+totChapas+' chapas</div>'
+    +'<div style="font-size:12px;color:var(--texto2);margin-top:2px">'+totArea.toFixed(1)+' m² · '+Math.round(totPeso).toLocaleString('pt-BR')+' kg</div>'
+    +'</div>'
+    +'<div class="card" style="padding:.75rem">'
+    +'<div style="font-size:10px;color:var(--texto3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Valor em estoque</div>'
+    +'<div style="font-size:20px;font-weight:600;color:var(--verde)">R$ '+totValor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div>'
+    +'<div style="font-size:12px;color:var(--texto2);margin-top:2px">'+(semValor?semValor+' item(s) sem valor cadastrado':'custo atualizado')+'</div>'
+    +'</div>'
+    +'</div>';
+
+  // Tabela
+  h+='<div class="card" style="padding:0;overflow:hidden">'
+    +'<div style="overflow-x:auto">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead><tr style="border-bottom:.5px solid var(--borda)">'
+    +'<th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:500;color:var(--texto3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap">Produto</th>'
+    +'<th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:500;color:var(--texto3);text-transform:uppercase;letter-spacing:.06em">Dimensões</th>'
+    +'<th style="padding:10px 8px;text-align:right;font-size:10px;font-weight:500;color:var(--texto3);text-transform:uppercase;letter-spacing:.06em">Chapas</th>'
+    +'<th style="padding:10px 8px;text-align:right;font-size:10px;font-weight:500;color:var(--texto3);text-transform:uppercase;letter-spacing:.06em">Área total</th>'
+    +'<th style="padding:10px 8px;text-align:right;font-size:10px;font-weight:500;color:var(--texto3);text-transform:uppercase;letter-spacing:.06em">Peso total</th>'
+    +'<th style="padding:10px 8px;text-align:right;font-size:10px;font-weight:500;color:var(--texto3);text-transform:uppercase;letter-spacing:.06em">Custo/m²</th>'
+    +'<th style="padding:10px 12px;text-align:right;font-size:10px;font-weight:500;color:var(--texto3);text-transform:uppercase;letter-spacing:.06em">Valor total</th>'
+    +'</tr></thead>'
+    +'<tbody>';
+
+  lista.forEach(function(m){
+    const s=m.saldo||0;
+    const a=_areaChapa(m);
+    const aTot=a*s;
+    const kg=_pesoM2(m.espessura)*aTot;
+    const valorTot=m.valor_m2?m.valor_m2*aTot:null;
+    h+='<tr style="border-bottom:.5px solid var(--borda)">'
+      +'<td style="padding:9px 12px;white-space:nowrap">'
+      +'<div style="font-size:12px;font-weight:500;color:var(--texto)">'+m.tipo+'</div>'
+      +'<div style="font-size:10px;color:var(--texto3);margin-top:1px">'+m.espessura+' · '+(m.cor||'Incolor')+'</div>'
+      +'</td>'
+      +'<td style="padding:9px 12px;font-family:var(--mono);color:var(--texto2);white-space:nowrap">'+(m.larg_mm||0)+'×'+(m.alt_mm||0)+'</td>'
+      +'<td style="padding:9px 8px;text-align:right;font-weight:500;color:var(--azul)">'+s+'</td>'
+      +'<td style="padding:9px 8px;text-align:right;font-family:var(--mono);color:var(--texto2)">'+aTot.toFixed(2)+' m²</td>'
+      +'<td style="padding:9px 8px;text-align:right;font-family:var(--mono);color:var(--texto2)">'+Math.round(kg)+' kg</td>'
+      +'<td style="padding:9px 8px;text-align:right;font-family:var(--mono);color:var(--texto2)">'+(m.valor_m2?'R$ '+m.valor_m2.toFixed(2):'<span style="color:var(--texto3)">—</span>')+'</td>'
+      +'<td style="padding:9px 12px;text-align:right;font-weight:500;font-family:var(--mono);color:'+(valorTot?'var(--verde)':'var(--texto3)')+'">'+( valorTot?'R$ '+valorTot.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>'
+      +'</tr>';
+  });
+
+  // Linha de totais
+  h+='<tr style="background:var(--fundo);font-weight:500">'
+    +'<td style="padding:10px 12px;font-size:12px;color:var(--texto)">Total geral</td>'
+    +'<td></td>'
+    +'<td style="padding:10px 8px;text-align:right;color:var(--azul);font-weight:600">'+totChapas+'</td>'
+    +'<td style="padding:10px 8px;text-align:right;font-family:var(--mono);color:var(--texto2)">'+totArea.toFixed(2)+' m²</td>'
+    +'<td style="padding:10px 8px;text-align:right;font-family:var(--mono);color:var(--texto2)">'+Math.round(totPeso)+' kg</td>'
+    +'<td></td>'
+    +'<td style="padding:10px 12px;text-align:right;font-family:var(--mono);font-weight:600;color:var(--verde)">R$ '+totValor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'
+    +'</tr>'
+    +'</tbody></table></div></div>';
+
+  h+='<button onclick="pcpGerarRelatorioInventario()" class="btn btn-primario" style="width:100%;height:44px;margin-top:12px;font-size:13px">'
+    +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="margin-right:6px;vertical-align:middle"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
+    +'Gerar Relatório de Inventário'
+    +'</button>';
+
+  el.innerHTML=h;
+}
+
+function pcpGerarRelatorioInventario(){
+  const tipoFilt=document.getElementById('pcp-filtro-tipo')?.value||'';
+  const espFilt=document.getElementById('pcp-filtro-esp')?.value||'';
+  let lista=PCP.estoque.filter(function(m){return (m.saldo||0)>0;});
+  if(tipoFilt) lista=lista.filter(function(m){return m.tipo===tipoFilt;});
+  if(espFilt)  lista=lista.filter(function(m){return m.espessura===espFilt;});
+
+  let totArea=0,totPeso=0,totValor=0,totChapas=0;
+  lista.forEach(function(m){
+    const s=m.saldo||0,a=_areaChapa(m)*s;
+    totChapas+=s; totArea+=a; totPeso+=_pesoM2(m.espessura)*a; totValor+=(m.valor_m2||0)*a;
+  });
+
+  const hoje=new Date().toLocaleDateString('pt-BR');
+  const filtroTxt=(tipoFilt?tipoFilt:'Todos os tipos')+(espFilt?' · '+espFilt:'');
+
+  const rows=lista.map(function(m){
+    const s=m.saldo||0,a=_areaChapa(m)*s,kg=_pesoM2(m.espessura)*a,vt=m.valor_m2?m.valor_m2*a:null;
+    return '<tr><td>'+m.tipo+'</td><td>'+m.espessura+'</td><td>'+(m.cor||'Incolor')+'</td>'
+      +'<td style="font-family:monospace">'+(m.larg_mm||0)+'×'+(m.alt_mm||0)+' mm</td>'
+      +'<td style="text-align:right">'+s+'</td>'
+      +'<td style="text-align:right">'+a.toFixed(2)+'</td>'
+      +'<td style="text-align:right">'+Math.round(kg)+'</td>'
+      +'<td style="text-align:right">'+(m.valor_m2?'R$ '+m.valor_m2.toFixed(2):'—')+'</td>'
+      +'<td style="text-align:right">'+(vt?'R$ '+vt.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td></tr>';
+  }).join('');
+
+  const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Inventário MP · Max Vidros</title>'
+    +'<style>body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;margin:24px}'
+    +'h1{font-size:16px;margin:0 0 4px}p{margin:0 0 16px;color:#555;font-size:11px}'
+    +'table{width:100%;border-collapse:collapse;margin-bottom:16px}'
+    +'th{background:#0F2547;color:#fff;padding:7px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em}'
+    +'td{padding:7px 10px;border-bottom:.5px solid #e0e0e0}'
+    +'tr:last-child td{border-bottom:none}'
+    +'.total{background:#f5f5f5;font-weight:700}'
+    +'.metric{display:inline-block;margin-right:24px;margin-bottom:12px}'
+    +'.metric-val{font-size:22px;font-weight:700;color:#0F2547}'
+    +'.metric-lbl{font-size:10px;color:#777;text-transform:uppercase}'
+    +'@media print{button{display:none}}'
+    +'</style></head><body>'
+    +'<h1>Relatório de Inventário · Matéria-Prima</h1>'
+    +'<p>Max Vidros · PCP · Emitido em '+hoje+' · Filtro: '+filtroTxt+'</p>'
+    +'<div><div class="metric"><div class="metric-val">'+totChapas+'</div><div class="metric-lbl">chapas em estoque</div></div>'
+    +'<div class="metric"><div class="metric-val">'+totArea.toFixed(1)+' m²</div><div class="metric-lbl">área total</div></div>'
+    +'<div class="metric"><div class="metric-val">'+Math.round(totPeso).toLocaleString('pt-BR')+' kg</div><div class="metric-lbl">peso total</div></div>'
+    +'<div class="metric"><div class="metric-val">R$ '+totValor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="metric-lbl">valor em estoque</div></div></div>'
+    +'<table><thead><tr><th>Tipo</th><th>Esp.</th><th>Cor</th><th>Dimensões</th><th style="text-align:right">Chapas</th>'
+    +'<th style="text-align:right">Área (m²)</th><th style="text-align:right">Peso (kg)</th>'
+    +'<th style="text-align:right">Custo/m²</th><th style="text-align:right">Valor total</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody>'
+    +'<tfoot><tr class="total"><td colspan="4">Total geral</td>'
+    +'<td style="text-align:right">'+totChapas+'</td>'
+    +'<td style="text-align:right">'+totArea.toFixed(2)+'</td>'
+    +'<td style="text-align:right">'+Math.round(totPeso)+'</td><td></td>'
+    +'<td style="text-align:right">R$ '+totValor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'
+    +'</tr></tfoot></table>'
+    +'<p style="font-size:10px;color:#aaa">Peso calculado: espessura (mm) × 2,5 kg/m². Para laminado, soma-se a espessura total das folhas.</p>'
+    +'<script>window.onload=function(){window.print();}<\/script></body></html>';
+
+  const w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();}
+}
+
+
   const tipoFilt=document.getElementById('pcp-filtro-tipo')?.value||'';
   const espFilt=document.getElementById('pcp-filtro-esp')?.value||'';
   let lista=PCP.estoque;
@@ -7094,7 +7271,7 @@ async function pcpSalvarEntrada(){
 }
 
 function pcpAbrirCadastroMP(){
-  ['pcp-cad-tipo','pcp-cad-esp','pcp-cad-cor','pcp-cad-larg','pcp-cad-alt','pcp-cad-desc','pcp-cad-ref-marca','pcp-cad-ref-modelo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['pcp-cad-tipo','pcp-cad-esp','pcp-cad-cor','pcp-cad-larg','pcp-cad-alt','pcp-cad-desc','pcp-cad-ref-marca','pcp-cad-ref-modelo','pcp-cad-valor'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const erro=document.getElementById('pcp-cad-erro'); if(erro)erro.style.display='none';
   const ref=document.getElementById('pcp-cad-ref-wrap'); if(ref)ref.style.display='none';
   const m=document.getElementById('pcp-modal-cad-mp');
@@ -7107,9 +7284,10 @@ async function pcpSalvarCadastroMP(){
   let desc=document.getElementById('pcp-cad-desc').value.trim();
   const erro=document.getElementById('pcp-cad-erro');
   if(cor==='Refletivo'){const m=document.getElementById('pcp-cad-ref-marca').value.trim(),md=document.getElementById('pcp-cad-ref-modelo').value.trim();if(!m||!md){erro.textContent='Informe marca e modelo.';erro.style.display='flex';return;}desc=`${m} · ${md}${desc?' · '+desc:''}`;}
+  const valor=parseFloat(document.getElementById('pcp-cad-valor').value)||null;
   if(!tipo||!esp||!cor||!larg||!alt){erro.textContent='Preencha todos os campos.';erro.style.display='flex';return;}
-  try{await supa.from('materia_prima').insert({tipo,espessura:esp,cor,larg_mm:larg,alt_mm:alt,descricao:desc||null,criado_por:S.vendedor?.id});fecharModal('pcp-modal-cad-mp');await pcpCarregarDados();}
-  catch(e){const id=Date.now();const nm={id,tipo,espessura:esp,cor,larg_mm:larg,alt_mm:alt,descricao:desc};PCP.mp.push(nm);PCP.estoque.push({...nm,qty_entrada:0,qty_empenhada:0,saldo:0,lotes:[]});fecharModal('pcp-modal-cad-mp');pcpPopularFiltroEsp();pcpRenderEstoque();}
+  try{await supa.from('materia_prima').insert({tipo,espessura:esp,cor,larg_mm:larg,alt_mm:alt,descricao:desc||null,valor_m2:valor,criado_por:S.vendedor?.id});fecharModal('pcp-modal-cad-mp');await pcpCarregarDados();}
+  catch(e){const id=Date.now();const nm={id,tipo,espessura:esp,cor,larg_mm:larg,alt_mm:alt,descricao:desc,valor_m2:valor};PCP.mp.push(nm);PCP.estoque.push({...nm,qty_entrada:0,qty_empenhada:0,saldo:0,lotes:[]});fecharModal('pcp-modal-cad-mp');pcpPopularFiltroEsp();pcpRenderEstoque();}
 }
 
 // ── OPs ──
