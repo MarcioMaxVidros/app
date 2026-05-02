@@ -7119,7 +7119,7 @@ function pcpGerarRelatorioInventario(){
     +'<td style="text-align:right">R$ '+totValor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'
     +'</tr></tfoot></table>'
     +'<p style="font-size:10px;color:#aaa">Peso calculado: espessura (mm) × 2,5 kg/m². Para laminado, soma-se a espessura total das folhas.</p>'
-    +'<script>window.onload=function(){window.print();}<\/script></body></html>';
+    +'<scr'+'ipt>window.onload=function(){window.print();}<\/scr'+'ipt></body></html>';
 
   const w=window.open('','_blank');
   if(w){w.document.write(html);w.document.close();}
