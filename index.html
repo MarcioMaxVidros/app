@@ -3550,6 +3550,8 @@ async function syncDados(){
     if(S.perfil==='pcp'||S.perfil==='admin') query=query.in('status',['aguardando_pcp','pedido','producao','concluido']);
     const { data: atds, error } = await query;
     if(error||!atds||!atds.length) return;
+    // Rank de status — status local mais avançado que o do banco não deve ser sobrescrito
+    const _STATUS_RANK = {enviado:1,revisado:2,aguardando_pcp:3,pedido:4,producao:5,concluido:6};
     atds.forEach(a => {
       const clienteDB = a.clientes||{};
       const itens = (a.itens_atd||[]).sort((x,y)=>x.ordem-y.ordem).map(it=>({
@@ -3562,6 +3564,9 @@ async function syncDados(){
         pipeline:it.pipeline||null,
         usinagem:{modelado:it.usinagem_modelado||false,tipos:it.usinagem_tipos||[],desenho:it.usinagem_desenho||false}
       }));
+      // Não sobrescrever status local mais avançado (ex: aguardando_pcp local vs enviado no banco)
+      const _local = S.atendimentos[a.id];
+      if(_local && (_STATUS_RANK[_local.status||'']||0) > (_STATUS_RANK[a.status||'']||0)) return;
       S.atendimentos[a.id] = {
         cliente:{cnpj:clienteDB.cnpj||'',razao:clienteDB.razao||'',contato:clienteDB.contato||'',tel:clienteDB.tel||'',email:clienteDB.email||'',segmento:clienteDB.segmento||'',atd:a.id,hora:a.criado_em?new Date(a.criado_em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):''},
         itens, status:a.status, tabela:a.tabela||'MX1',
@@ -6581,17 +6586,20 @@ async function efetivarPedido(){
     if(idx>=0) PCP.ops[idx]=opObj; else PCP.ops.unshift(opObj);
   }
 
-  // Gravar no Supabase
+  // Gravar no Supabase — status primeiro (crítico), campos extras depois (opcionais)
+  try {
+    await supa.from('atendimentos').update({ status: 'aguardando_pcp' }).eq('id', _atdAprovacao);
+  } catch(e){ console.warn('Supabase efetivarPedido status:', e); }
   try {
     await supa.from('atendimentos').update({
-      status: 'aguardando_pcp',
       op_numero: opNum,
       op_efetivado_por: S.vendedor.nome,
       op_efetivado_em: agora,
       data_efetivacao: new Date().toISOString().split('T')[0],
       prazo_max_dias: prazo
     }).eq('id', _atdAprovacao);
-
+  } catch(e){ console.warn('Supabase efetivarPedido extras:', e); }
+  try {
     await supa.from('atividades').insert({
       usuario_id: S.vendedor.id||null,
       atd_id: _atdAprovacao,
@@ -6600,7 +6608,7 @@ async function efetivarPedido(){
       detalhe: `OP: ${opNum} · ${prazo} dias`,
       hora: agora
     });
-  } catch(e){ console.warn('Supabase efetivarPedido:', e); }
+  } catch(e){ console.warn('Supabase efetivarPedido atividade:', e); }
 
   document.getElementById('apr-op-form').style.display = 'none';
   document.getElementById('apr-acoes').style.display = 'none';
@@ -6614,6 +6622,8 @@ async function efetivarPedido(){
   renderFilaInterno();
   renderFilaProducao();
   if(_modoDesktop()) setTimeout(()=>gerarPdfConfirmacao(_atdAprovacao), 400);
+  // Voltar automaticamente para a fila após 2.5s
+  setTimeout(function(){ ir('tela-interno'); }, 2500);
 }
 
 function _modoDesktop(){
